@@ -1,6 +1,10 @@
+// ======================================================================
+// 档案: src/main/java/xczl/recursivecraft/command/RecursiveCraftCommand.java
+// (已更新日志逻辑)
+// ======================================================================
 package xczl.recursivecraft.command;
 
-import xczl.recursivecraft.core.CraftingPlanner; // <<< 导入
+import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.core.TransactionCalculator;
 import xczl.recursivecraft.data.CraftingTransaction;
 import com.mojang.brigadier.CommandDispatcher;
@@ -23,6 +27,7 @@ import java.util.Map;
 public class RecursiveCraftCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context) {
+        // (注册逻辑不变)
         dispatcher.register(
                 Commands.literal("craft_recursive")
                         .requires(source -> source.hasPermission(2))
@@ -38,62 +43,46 @@ public class RecursiveCraftCommand {
      * 这是 run 函数的完整代码
      */
     private static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        // 1. 获取输入
+        // (1-4 步不变)
         ServerPlayer player = context.getSource().getPlayerOrException();
         ItemInput itemInput = ItemArgument.getItem(context, "item");
         Item targetItem = itemInput.getItem();
         int amount = IntegerArgumentType.getInteger(context, "amount");
         CommandSourceStack source = context.getSource();
 
-        // === [修复 Bug 2A: 异步竞争] ===
-        // 在执行任何操作前, 检查 CraftingPlanner 是否已完成其后台计算
         if (!CraftingPlanner.isReady) {
             source.sendFailure(Component.literal(
                     "[RecursiveCraft] 合成规划器仍在启动中，请稍后几秒再试..."
             ));
             return 0;
         }
-        // ============================
 
-        // 2. 方便调试，暂时屏蔽创造模式的检测
-//        if (player.isCreative()) {
-//            source.sendFailure(Component.literal("[RecursiveCraft] 本功能仅在生存模式下生效。"));
-//            return 0;
-//        }
-
-        // 3. A. 调用 TransactionCalculator
         source.sendSuccess(() -> Component.literal("正在计算合成方案..."), false);
-
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
-
-        // === [修复 Bug 1: 背包刷新] ===
-        // 调用 calculate 时, 传入 'true'
-        // 标记 'targetItem' 是一个 "最终产品", 不应从背包消耗。
         CraftingTransaction transaction = calculator.calculate(targetItem, amount, true);
-        // ============================
-
-        // 4. 将 *最终产物* 加入到 "Provides" 列表
         transaction.addProvide(targetItem, amount);
 
-        // === [DEBUG] 打印最终事务表 ===
+        // === [DEBUG] 打印最终事务表 (将调用更新后的 logTransaction) ===
         logTransaction(source, transaction);
         // ============================
 
-        // 5. B. 检查 '总事务表.Needs'
+        // (5. 检查“净需求” - 逻辑不变)
         Map<Item, Integer> missingMaterials = new HashMap<>();
-        for (Map.Entry<Item, Integer> entry : transaction.getNeeds().entrySet()) {
-            Item neededItem = entry.getKey();
-            int neededAmount = entry.getValue();
+        Map<Item, Integer> netDeltas = transaction.getNetDeltas(); //
 
-            // 检查玩家背包
-            int amountInInventory = player.getInventory().countItem(neededItem);
-
-            if (amountInInventory < neededAmount) {
-                missingMaterials.put(neededItem, neededAmount - amountInInventory);
+        for (Map.Entry<Item, Integer> entry : netDeltas.entrySet()) {
+            int netAmount = entry.getValue();
+            if (netAmount < 0) {
+                Item neededItem = entry.getKey();
+                int neededAmount = -netAmount;
+                int amountInInventory = player.getInventory().countItem(neededItem);
+                if (amountInInventory < neededAmount) {
+                    missingMaterials.put(neededItem, neededAmount - amountInInventory);
+                }
             }
         }
 
-        // 6. 否 (材料不足) -> 提示
+        // (6. 材料不足提示 - 逻辑不变)
         if (!missingMaterials.isEmpty()) {
             StringBuilder message = new StringBuilder("缺少材料: ");
             for (Map.Entry<Item, Integer> missing : missingMaterials.entrySet()) {
@@ -106,7 +95,7 @@ public class RecursiveCraftCommand {
             return 0;
         }
 
-        // 7. 是 (材料充足) -> C. 执行事务
+        // (7. 执行事务 - 逻辑不变)
         try {
             transaction.execute(player);
             source.sendSuccess(
@@ -120,28 +109,44 @@ public class RecursiveCraftCommand {
         }
     }
 
+    // <<< [修复] 调试日志辅助函数 (更新为显示“净”变化) >>>
     /**
-     * [DEBUG] 调试日志辅助函数 (无修改)
+     * [DEBUG] 调试日志辅助函数
+     * (已更新) 显示 "净消耗" 和 "净产出"
      */
     private static void logTransaction(CommandSourceStack source, CraftingTransaction transaction) {
         source.sendSuccess(() -> Component.literal("--- [RecursiveCraft DEBUG] ---"), false);
 
-        // 打印消耗表
-        source.sendSuccess(() -> Component.literal("【消耗表 (Needs)】"), false);
-        if (transaction.getNeeds().isEmpty()) {
+        // 1. 获取净变化
+        Map<Item, Integer> netDeltas = transaction.getNetDeltas(); //
+
+        // 2. 分离 净消耗 和 净产出
+        Map<Item, Integer> netNeeds = new HashMap<>();
+        Map<Item, Integer> netProvides = new HashMap<>();
+        for (Map.Entry<Item, Integer> entry : netDeltas.entrySet()) {
+            if (entry.getValue() < 0) { // 负数 = 净消耗
+                netNeeds.put(entry.getKey(), -entry.getValue()); // 存为正数
+            } else if (entry.getValue() > 0) { // 正数 = 净产出
+                netProvides.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // 3. 打印净消耗
+        source.sendSuccess(() -> Component.literal("【净消耗 (Net Needs)】"), false);
+        if (netNeeds.isEmpty()) {
             source.sendSuccess(() -> Component.literal("  (无)"), false);
         } else {
-            transaction.getNeeds().forEach((item, amount) -> {
+            netNeeds.forEach((item, amount) -> {
                 source.sendSuccess(() -> Component.literal(String.format("  - %dx %s", amount, item.getDescription().getString())), false);
             });
         }
 
-        // 打印产物表
-        source.sendSuccess(() -> Component.literal("【产物表 (Provides)】"), false);
-        if (transaction.getProvides().isEmpty()) {
+        // 4. 打印净产出
+        source.sendSuccess(() -> Component.literal("【净产出 (Net Provides)】"), false);
+        if (netProvides.isEmpty()) {
             source.sendSuccess(() -> Component.literal("  (无)"), false);
         } else {
-            transaction.getProvides().forEach((item, amount) -> {
+            netProvides.forEach((item, amount) -> {
                 source.sendSuccess(() -> Component.literal(String.format("  - %dx %s", amount, item.getDescription().getString())), false);
             });
         }

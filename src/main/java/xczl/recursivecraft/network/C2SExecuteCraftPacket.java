@@ -1,3 +1,7 @@
+// ======================================================================
+// 档案: src/main/java/xczl/recursivecraft/network/C2SExecuteCraftPacket.java
+// (已应用 "净变化" 修复 + "净日志" 修复)
+// ======================================================================
 package xczl.recursivecraft.network;
 
 import net.minecraft.network.FriendlyByteBuf;
@@ -87,8 +91,51 @@ public class C2SExecuteCraftPacket {
             CraftingTransaction transaction = calculator.calculate(targetItem, amount, true); //
             transaction.addProvide(targetItem, amount); //
 
+
+            // <<< [修复] [DEBUG 日志] (更新为显示“净”变化) >>>
+            player.sendSystemMessage(Component.literal("--- [RecursiveCraft DEBUG] ---"));
+
+            // 1. 获取净变化
+            Map<Item, Integer> netDeltas = transaction.getNetDeltas();
+
+            // 2. 分离 净消耗 和 净产出
+            Map<Item, Integer> netNeeds = new HashMap<>();
+            Map<Item, Integer> netProvides = new HashMap<>();
+            for (Map.Entry<Item, Integer> entry : netDeltas.entrySet()) {
+                if (entry.getValue() < 0) { // 负数 = 净消耗
+                    netNeeds.put(entry.getKey(), -entry.getValue()); // 存为正数
+                } else if (entry.getValue() > 0) { // 正数 = 净产出
+                    netProvides.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // 3. 打印净消耗
+            player.sendSystemMessage(Component.literal("【净消耗 (Net Needs)】"));
+            if (netNeeds.isEmpty()) {
+                player.sendSystemMessage(Component.literal("  (无)"));
+            } else {
+                netNeeds.forEach((item, itemAmount) -> { // (变量名 'amount' 避免冲突)
+                    player.sendSystemMessage(Component.literal(String.format("  - %dx %s", itemAmount, item.getDescription().getString())));
+                });
+            }
+
+            // 4. 打印净产出
+            player.sendSystemMessage(Component.literal("【净产出 (Net Provides)】"));
+            if (netProvides.isEmpty()) {
+                player.sendSystemMessage(Component.literal("  (无)"));
+            } else {
+                netProvides.forEach((item, itemAmount) -> { // (变量名 'amount' 避免冲突)
+                    player.sendSystemMessage(Component.literal(String.format("  - %dx %s", itemAmount, item.getDescription().getString())));
+                });
+            }
+            player.sendSystemMessage(Component.literal("---------------------------------"));
+            // <<< [DEBUG 结束] >>>
+
+
+            // (5. 检查“净需求” - 逻辑不变, 使用 netNeeds)
             Map<Item, Integer> missingMaterials = new HashMap<>();
-            for (Map.Entry<Item, Integer> entry : transaction.getNeeds().entrySet()) { //
+            // (我们复用上面日志计算出的 netNeeds)
+            for (Map.Entry<Item, Integer> entry : netNeeds.entrySet()) {
                 Item neededItem = entry.getKey();
                 int neededAmount = entry.getValue();
                 int amountInInventory = player.getInventory().countItem(neededItem);
