@@ -1,6 +1,6 @@
 // ======================================================================
 // 档案: src/main/java/xczl/recursivecraft/core/CraftingPlanner.java
-// (V9.3: 多阶段救援算法 - 完美修复金属/宝石类物品无法合成的问题)
+// (V9.8: 引入加工成本惩罚，打破数值相等的配方死循环)
 // ======================================================================
 package xczl.recursivecraft.core;
 
@@ -21,13 +21,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 流程一：合成规划器 (V9.3 Multi-Stage Rescue)。
- * 解决“死锁原料导致其下游产物（如工具）被误判为不可合成”的问题。
- */
 public class CraftingPlanner {
     private static final CraftingPlanner INSTANCE = new CraftingPlanner();
     public static volatile boolean isReady = false;
+
+    // [V9.8] 合成成本惩罚 (Entropy)
+    // 防止 A(1.0) -> B(1.0) -> A(1.0) 的无损循环。
+    // 增加此值确保经过合成步骤越多的物品，单位理论成本越高。
+    private static final double RECIPE_COST_PENALTY = 0.1d;
 
     private final Map<Item, Double> minCostTable = new HashMap<>();
     private final Map<Item, CostMap> costMemo = new HashMap<>();
@@ -39,16 +40,8 @@ public class CraftingPlanner {
     public Map<Item, CraftingRecipe> getPathMemo() { return pathMemo; }
     public Map<Item, CostMap> getCostMemo() { return costMemo; }
 
-    // 调试关键词
-    private static final List<String> DEBUG_KEYWORDS = List.of("ore", "ingot", "diamond", "pickaxe");
-    private boolean isDebugItem(Item item) {
-        String id = ForgeRegistries.ITEMS.getKey(item).toString().toLowerCase();
-        for (String keyword : DEBUG_KEYWORDS) if (id.contains(keyword)) return true;
-        return false;
-    }
-
     public void buildOptimalPathTree(RecipeManager recipeManager) {
-        RecursiveCraft.LOGGER.info("RecursiveCraft: Building optimal path tree (Engine V9.3)...");
+        RecursiveCraft.LOGGER.info("RecursiveCraft: Building optimal path tree (Engine V9.8 Entropy)...");
         long startTime = System.currentTimeMillis();
 
         isReady = false;
@@ -57,7 +50,6 @@ public class CraftingPlanner {
         pathMemo.clear();
         recipeLookup.clear();
 
-        // 1. 收集配方
         List<CraftingRecipe> allRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
         Set<Item> allItems = new HashSet<>();
 
@@ -69,7 +61,6 @@ public class CraftingPlanner {
         }
         allItems.addAll(ForgeRegistries.ITEMS.getValues());
 
-        // 2. 初始化：默认无限，无配方物品设为 1.0
         for (Item item : allItems) minCostTable.put(item, Double.MAX_VALUE);
         int baseCount = 0;
         for (Item item : allItems) {
@@ -80,26 +71,16 @@ public class CraftingPlanner {
         }
         RecursiveCraft.LOGGER.info("Phase 1: Initialized {} absolute base items.", baseCount);
 
-        // 3. 第一轮计算 (Phase 1: Convergence)
-        // 计算所有能从木头、石头等自然资源合成出来的物品
-        runConvergenceLoop(100);
+        // Phase 1: Convergence
+        runConvergenceLoop(100, null);
 
-        // 4. 救援行动 (Phase 2: Rescue Ingredients)
-        // 此时，铁锭(Ingot)、钻石(Diamond) 等因为有循环配方且无自然来源，成本仍为无限。
-        // 进而导致 铁镐(Pickaxe) 也是无限。
-        // 我们需要找到所有“配方所需的原料”，如果它们是无限的，强制设为 1.0。
-        RecursiveCraft.LOGGER.info("Phase 2: Rescuing deadlock ingredients...");
-        int rescuedCount = 0;
+        // Phase 2: Rescue
         Set<Item> itemsToRescue = new HashSet<>();
-
         for (Map.Entry<Item, List<CraftingRecipe>> entry : recipeLookup.entrySet()) {
-            // 遍历所有配方
             for (CraftingRecipe recipe : entry.getValue()) {
-                // 检查该配方的原料
                 for (Ingredient ingredient : recipe.getIngredients()) {
                     for (ItemStack stack : ingredient.getItems()) {
                         Item inputItem = stack.getItem();
-                        // 如果原料目前还是无限成本 (说明它是死锁环的一部分)
                         if (minCostTable.getOrDefault(inputItem, Double.MAX_VALUE) >= Double.MAX_VALUE) {
                             itemsToRescue.add(inputItem);
                         }
@@ -108,55 +89,36 @@ public class CraftingPlanner {
             }
         }
 
-        // 执行救援
         for (Item item : itemsToRescue) {
             minCostTable.put(item, 1.0);
-            rescuedCount++;
-            if (isDebugItem(item)) {
-                RecursiveCraft.LOGGER.info("   -> Rescued ingredient: {}", item.getDescription().getString());
-            }
         }
-        RecursiveCraft.LOGGER.info("Phase 2: Rescued {} items (forced to base material).", rescuedCount);
+        RecursiveCraft.LOGGER.info("Phase 2: Rescued {} items.", itemsToRescue.size());
 
-        // 5. 第二轮计算 (Phase 3: Final Convergence)
-        // 现在铁锭是 1.0 了，铁镐应该能算出成本了！
-        RecursiveCraft.LOGGER.info("Phase 3: Finalizing costs...");
-        runConvergenceLoop(100);
+        // Phase 3: Finalize
+        runConvergenceLoop(100, itemsToRescue);
 
-        // 6. 生成最终结果
-        // 只有那些最终成本有限的物品，才会进入 pathMemo (可合成列表)
+        // Result Generation
         int craftableCount = 0;
         for (Item item : allItems) {
             double finalCost = minCostTable.getOrDefault(item, Double.MAX_VALUE);
-
             if (finalCost >= Double.MAX_VALUE) {
-                // 真的没救了 (孤立物品)
                 costMemo.put(item, CostMap.INFINITE_COST);
             } else {
-                // 成功
                 costMemo.put(item, new CostMap(item, finalCost));
-                // 只有当物品有配方，且配方被选中时，pathMemo 才有它
                 if (pathMemo.containsKey(item)) {
                     craftableCount++;
-                    if (isDebugItem(item)) {
-                        RecursiveCraft.LOGGER.info("   -> [Success] Crafted: {} Cost={}", item.getDescription().getString(), finalCost);
-                    }
                 }
             }
         }
 
         long endTime = System.currentTimeMillis();
-        RecursiveCraft.LOGGER.info("RecursiveCraft: Engine V9.3 finished in {}ms. Found {} craftable items.", (endTime - startTime), craftableCount);
+        RecursiveCraft.LOGGER.info("RecursiveCraft: Engine V9.8 finished. Found {} craftable items.", craftableCount);
         isReady = true;
     }
 
-    /**
-     * 运行一轮迭代收敛
-     */
-    private void runConvergenceLoop(int maxIterations) {
+    private void runConvergenceLoop(int maxIterations, Set<Item> rescuedItems) {
         boolean changed = true;
         int iterations = 0;
-
         while (changed && iterations < maxIterations) {
             changed = false;
             iterations++;
@@ -167,11 +129,14 @@ public class CraftingPlanner {
 
                 for (CraftingRecipe recipe : entry.getValue()) {
                     double recipeCost = calculateRecipeCost(recipe);
-                    if (recipeCost < currentBestCost) {
+
+                    if (recipeCost < currentBestCost || (rescuedItems != null && rescuedItems.contains(target) && recipeCost < Double.MAX_VALUE)) {
                         minCostTable.put(target, recipeCost);
                         pathMemo.put(target, recipe);
                         currentBestCost = recipeCost;
                         changed = true;
+
+                        if (rescuedItems != null) rescuedItems.remove(target);
                     }
                 }
             }
@@ -180,6 +145,7 @@ public class CraftingPlanner {
 
     private double calculateRecipeCost(CraftingRecipe recipe) {
         double totalIngredientsCost = 0;
+
         for (Ingredient ingredient : recipe.getIngredients()) {
             if (ingredient.isEmpty()) continue;
             ItemStack[] stacks = ingredient.getItems();
@@ -196,8 +162,15 @@ public class CraftingPlanner {
             if (cheapestOption >= Double.MAX_VALUE) return Double.MAX_VALUE;
             totalIngredientsCost += cheapestOption;
         }
+
+        // [V9.8] 加上加工成本惩罚
+        // 这保证了: Cost(Block) > 9 * Cost(Ingot)
+        // 进而保证: Cost(Ingot from Block) > Cost(Ingot base)
+        totalIngredientsCost += RECIPE_COST_PENALTY;
+
         int outputCount = recipe.getResultItem(null).getCount();
         if (outputCount <= 0) outputCount = 1;
+
         return totalIngredientsCost / outputCount;
     }
 }
