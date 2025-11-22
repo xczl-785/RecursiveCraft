@@ -2,6 +2,13 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.iml" filepath="$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/common/RecursiveCraft.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.main.iml" filepath="$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.test.iml" filepath="$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.test.iml" filepath="$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/RecursiveCraft.main.iml" filepath="$PROJECT_DIR$/.idea/modules/RecursiveCraft.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/RecursiveCraft.test.iml" filepath="$PROJECT_DIR$/.idea/modules/RecursiveCraft.test.iml" />
     </modules>
