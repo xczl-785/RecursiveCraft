@@ -1,22 +1,25 @@
 {
   "schemaVersion": 1,
-  "id": "recursivecraft",
+  "id": "${mod_id}",
   "version": "${version}",
-  "name": "递归合成",
-  "description": "基于当前背包内的材料，选择最优的合成路径，实现递归合成。",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
   "authors": [
-    "Me!"
+    "${mod_authors}"
   ],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "homepage": "${mod_homepage}",
+    "sources": "${mod_sources}"
   },
-  "license": "Insert License Here",
-  "icon": "assets/recursivecraft/icon.png",
+  "license": "${mod_license}",
+  "icon": "assets/${mod_id}/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
       "xczl.recursivecraft.fabric.RecursiveCraftFabric"
+    ],
+    "jei_mod_plugin": [
+      "xczl.recursivecraft.compat.jei.RecursiveCraftJeiPlugin"
     ]
   },
   "mixins": [
@@ -24,8 +27,12 @@
     "recursivecraft-common.mixins.json"
   ],
   "depends": {
+    "fabricloader": ">=0.14.6",
     "fabric": "*",
     "minecraft": ">=1.20.1",
     "architectury": ">=9.1.12"
+  },
+  "suggests": {
+    "jei": "*"
   }
 }
