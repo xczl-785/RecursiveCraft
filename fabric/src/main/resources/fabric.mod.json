@@ -3,7 +3,7 @@
   "id": "recursivecraft",
   "version": "${version}",
   "name": "递归合成",
-  "description": "This is an example description! Tell everyone what your mod is about!",
+  "description": "基于当前背包内的材料，选择最优的合成路径，实现递归合成。",
   "authors": [
     "Me!"
   ],

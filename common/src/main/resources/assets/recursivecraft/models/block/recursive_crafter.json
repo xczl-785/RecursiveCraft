@@ -7,6 +7,6 @@
     "east": "recursivecraft:block/recursive_crafter_side",
     "west": "recursivecraft:block/recursive_crafter_front",
     "up": "recursivecraft:block/recursive_crafter_top",
-    "down": "minecraft:block/planks_oak"
+    "down": "minecraft:block/oak_planks"
   }
 }
