@@ -14,6 +14,9 @@ dependencies {
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
 
     implementation 'com.belerweb:pinyin4j:2.5.1'
+
+    // [新增] JEI Common API (仅编译期依赖，防止游戏运行崩溃)
+    modCompileOnly "mezz.jei:jei-1.20.1-common-api:15.2.0.27"
 }
 
 publishing {

@@ -41,6 +41,15 @@ allprojects {
         // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
         // See https://docs.gradle.org/current/userguide/declaring_repositories.html
         // for more information about repositories.
+
+        // 添加 JEI 的专用仓库 ModMaven
+        maven {
+            url "https://modmaven.dev/"
+            // 推荐加上 content 过滤，加快构建速度（可选）
+            content {
+                includeGroup "mezz.jei"
+            }
+        }
     }
 
     tasks.withType(JavaCompile) {

@@ -30,6 +30,11 @@ dependencies {
 
     include 'com.belerweb:pinyin4j:2.5.1'
     implementation 'com.belerweb:pinyin4j:2.5.1'
+
+    // [新增] JEI Fabric 依赖
+    modCompileOnly "mezz.jei:jei-1.20.1-fabric-api:15.2.0.27"
+    // 开发环境运行时加载 JEI，方便测试
+    modLocalRuntime "mezz.jei:jei-1.20.1-fabric:15.2.0.27"
 }
 
 processResources {
