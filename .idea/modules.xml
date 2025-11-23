@@ -9,8 +9,6 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.test.iml" filepath="$PROJECT_DIR$/.idea/modules/fabric/RecursiveCraft.fabric.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.test.iml" filepath="$PROJECT_DIR$/.idea/modules/forge/RecursiveCraft.forge.test.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/RecursiveCraft.main.iml" filepath="$PROJECT_DIR$/.idea/modules/RecursiveCraft.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/RecursiveCraft.test.iml" filepath="$PROJECT_DIR$/.idea/modules/RecursiveCraft.test.iml" />
     </modules>
   </component>
 </project>

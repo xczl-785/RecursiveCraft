@@ -54,7 +54,8 @@ public class CraftingPlanner {
      */
     private final Map<Item, List<CraftingRecipe>> recipeLookup = new HashMap<>();
 
-    private CraftingPlanner() {}
+    private CraftingPlanner() {
+    }
 
     public static CraftingPlanner getInstance() {
         return INSTANCE;
@@ -66,6 +67,10 @@ public class CraftingPlanner {
 
     public Map<Item, CostMap> getCostMemo() {
         return costMemo;
+    }
+
+    public List<CraftingRecipe> getRecipesFor(Item item) {
+        return recipeLookup.getOrDefault(item, Collections.emptyList());
     }
 
     /**
