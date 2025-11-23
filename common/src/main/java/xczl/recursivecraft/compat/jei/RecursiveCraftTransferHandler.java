@@ -8,17 +8,21 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
-import net.minecraft.client.Minecraft; // 引入 Minecraft
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundPlaceRecipePacket;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.ShapedRecipe;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 import xczl.recursivecraft.networking.PacketHandler;
@@ -63,103 +67,132 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
     ) {
         // 1. 基础检查
         ItemStack output = recipe.getResultItem(player.level().registryAccess());
-        if (output.isEmpty()) return new SimpleError(IRecipeTransferError.Type.USER_FACING, Component.literal("配方无效"));
+        if (output.isEmpty()) {
+            return new SimpleError(IRecipeTransferError.Type.USER_FACING, Component.literal("配方无效").withStyle(ChatFormatting.RED));
+        }
 
         boolean isCtrlDown = Screen.hasControlDown();
 
-        // === 1. 递归合成器 或 按住 Ctrl (强制执行) ===
-        // 在这些情况下，我们完全接管，忽略原版逻辑
-        if (isCtrlDown || !(container instanceof InventoryMenu)) {
-            if (!doTransfer) return null; // 验证通过 (按钮显示为蓝色)
+        // === 逻辑一：递归合成 ===
+        // 触发条件：按住 Ctrl
+        if (isCtrlDown) {
+            if (!doTransfer) return null; // 检查通过，显示蓝色/绿色按钮
 
-            // 执行合成
+            // 发送递归合成包
             int craftAmount = maxTransfer ? 64 : 1;
             PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(output.getItem(), craftAmount));
             return null;
         }
 
-        // === 2. 玩家背包 (未按 Ctrl) ===
-        // 这里我们需要“智能分流”
-        if (container instanceof InventoryMenu) {
-            // 判断是否为大配方 (2x2 放不下)
-            boolean isBigRecipe = !recipe.canCraftInDimensions(2, 2);
+        // === 逻辑二：原版合成 (背包 / 工作台) ===
+        // 触发条件：未按 Ctrl，且容器是 InventoryMenu 或 CraftingMenu
+        // (其他容器如递归合成器如果不按Ctrl，默认不做操作或者也可以走这里，看需求)
 
-            if (isBigRecipe) {
-                // 情况 A: 3x3 配方 (背包放不下) -> 我们必须接管
-                // 此时原版 Handler 会隐藏按钮，所以我们要负责报错
+        if (container instanceof InventoryMenu || container instanceof CraftingMenu) {
 
-                // 1. 计算缺少的材料
-                List<IRecipeSlotView> missingSlots = calculateMissingSlots(recipe, recipeSlots, player);
+            // 2.1 尺寸检查 (仅针对 2x2 的背包)
+            if (container instanceof InventoryMenu) {
+                if (!recipe.canCraftInDimensions(2, 2)) {
+                    // 计算哪些格子会导致放不下（虽然是放不下，但把占用的格子标红能提示用户）
+                    // 这里使用 calculateMissingSlots 也可以，或者直接报错
+                    Component warningText = Component.literal("配方过大，请按 Ctrl + 点击 进行递归合成")
+                            .withStyle(ChatFormatting.RED);
 
-                Component warningText = Component.literal("配方过大，请按 Ctrl + 点击 进行递归合成")
-                        .withStyle(net.minecraft.ChatFormatting.RED);
-
-                // 2. 返回 JEI 标准错误 (会自动处理 Tooltip 和高亮)
-                if (!missingSlots.isEmpty()) {
-                    // 如果有缺材料，高亮它们 + 显示提示
-                    return transferHelper.createUserErrorForMissingSlots(warningText, missingSlots);
-                } else {
-                    // 如果材料齐了 (只是配方大)，只显示提示
+                    // 这里我们返回一个只带提示的错误，JEI 会把按钮置红/灰
                     return transferHelper.createUserErrorWithTooltip(warningText);
                 }
-            } else {
-                // 情况 B: 2x2 配方 (背包能做) -> 放行给原版
-                // 返回 INTERNAL 错误，JEI 会自动去试下一个 Handler (即原版 Handler)
-                return new SimpleError(IRecipeTransferError.Type.INTERNAL, Component.empty());
             }
+
+            // 2.2 材料检查 (通用)
+            // 使用精准的坐标算法计算缺少的材料，确保 JEI 界面标红位置正确
+            List<IRecipeSlotView> missingSlots = calculateMissingSlots(recipe, recipeSlots, player);
+
+            if (!missingSlots.isEmpty()) {
+                // 缺材料 -> 按钮标红 + 对应的 JEI 槽位标红
+                return transferHelper.createUserErrorForMissingSlots(
+                        Component.literal("缺少材料").withStyle(ChatFormatting.RED),
+                        missingSlots
+                );
+            }
+
+            // 2.3 执行原版摆放
+            // 材料充足，且尺寸合适 -> 显示绿色按钮
+            if (!doTransfer) return null;
+
+            // 玩家点击 -> 发送原版摆放包
+            Minecraft.getInstance().getConnection().send(
+                    new ServerboundPlaceRecipePacket(
+                            container.containerId,
+                            recipe,
+                            maxTransfer
+                    )
+            );
+
+            return null;
         }
 
         return null;
     }
 
     /**
-     * 计算配方中缺失材料对应的 JEI 槽位视图
+     * 计算缺失材料 (精准坐标映射版)
+     * 修复了 2x2 配方在 3x3 网格中标红错位的问题
      */
     private List<IRecipeSlotView> calculateMissingSlots(CraftingRecipe recipe, IRecipeSlotsView recipeSlots, Player player) {
         List<IRecipeSlotView> missingViews = new ArrayList<>();
-        List<ItemStack> inventoryCopy = new ArrayList<>();
 
-        // 复制玩家背包 (模拟扣除)
+        // 1. 模拟玩家背包
+        List<ItemStack> inventoryCopy = new ArrayList<>();
         for (ItemStack stack : player.getInventory().items) {
             if (!stack.isEmpty()) {
                 inventoryCopy.add(stack.copy());
             }
         }
 
-        // 获取 JEI 界面上的所有输入槽位
-        List<IRecipeSlotView> inputSlots = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT);
-        List<Ingredient> ingredients = recipe.getIngredients();
+        // 2. 提取所有 [非空] 的配方原料
+        List<Ingredient> requiredIngredients = new ArrayList<>();
+        for (Ingredient ing : recipe.getIngredients()) {
+            if (!ing.isEmpty()) {
+                requiredIngredients.add(ing);
+            }
+        }
 
-        // 遍历配方原料
-        for (int i = 0; i < ingredients.size(); i++) {
-            Ingredient ingredient = ingredients.get(i);
-            if (ingredient.isEmpty()) continue;
+        // 3. 提取所有 [非空] 的 JEI 槽位视图
+        // JEI 的 3x3 视图中，空格子会被跳过，有物品的格子会按顺序保留
+        List<IRecipeSlotView> activeSlotViews = new ArrayList<>();
+        for (IRecipeSlotView view : recipeSlots.getSlotViews(RecipeIngredientRole.INPUT)) {
+            if (!view.isEmpty()) {
+                activeSlotViews.add(view);
+            }
+        }
+
+        // 4. 一一对应进行检查
+        // 理论上 size 应该相等，取最小值防止越界
+        int checkCount = Math.min(requiredIngredients.size(), activeSlotViews.size());
+
+        for (int i = 0; i < checkCount; i++) {
+            Ingredient ingredient = requiredIngredients.get(i);
+            IRecipeSlotView view = activeSlotViews.get(i);
 
             boolean found = false;
-            // 在模拟背包中寻找匹配项
+            // 在模拟背包中寻找匹配
             for (ItemStack invStack : inventoryCopy) {
                 if (!invStack.isEmpty() && ingredient.test(invStack)) {
-                    invStack.shrink(1); // 模拟扣除
-                    if (invStack.isEmpty()) {
-                        // 如果堆叠用完了，从列表中移除或者设为 Empty，避免重复使用 (这里简化处理)
-                        // 严谨的写法是移除，但 shrink 已经修改了 count，下次 test 会失败或 count 为 0
-                    }
+                    invStack.shrink(1); // 模拟消耗
                     found = true;
                     break;
                 }
             }
 
+            // 如果没找到，把这个具体的 View 加入缺失列表
+            // JEI 会自动根据 View 的坐标来画红框，不需要我们算坐标
             if (!found) {
-                // 如果没找到，把对应的 JEI 槽位加到缺失列表
-                if (i < inputSlots.size()) {
-                    missingViews.add(inputSlots.get(i));
-                }
+                missingViews.add(view);
             }
         }
+
         return missingViews;
     }
-
-    // 自定义错误类，用于处理 INTERNAL 类型
     private static class SimpleError implements IRecipeTransferError {
         private final Type type;
         private final Component message;
@@ -174,9 +207,6 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
 
         @Override
         public void showError(GuiGraphics graphics, int mouseX, int mouseY, IRecipeSlotsView recipeSlotsView, int recipeX, int recipeY) {
-            // INTERNAL 类型的错误，JEI 不会调用这个方法，它会直接跳过
-            // USER_FACING 类型的错误，我们上面使用了 Helper，所以也不会走到这里
-            // 但为了保险，我们可以加上绘制逻辑
             if (type == Type.USER_FACING) {
                 graphics.renderTooltip(Minecraft.getInstance().font, message, mouseX, mouseY);
             }

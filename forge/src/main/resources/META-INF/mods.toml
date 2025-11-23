@@ -6,7 +6,7 @@ license = "Insert License Here"
 [[mods]]
 modId = "recursivecraft"
 version = "${version}"
-displayName = "Example Mod"
+displayName = "递归合成"
 authors = "Me!"
 description = '''
 This is an example description! Tell everyone what your mod is about!

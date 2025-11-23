@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "recursivecraft",
   "version": "${version}",
-  "name": "Example Mod",
+  "name": "递归合成",
   "description": "This is an example description! Tell everyone what your mod is about!",
   "authors": [
     "Me!"
