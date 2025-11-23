@@ -1,7 +1,7 @@
 package xczl.recursivecraft.menu;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf; // 关键导入
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -11,28 +11,50 @@ import net.minecraft.world.item.ItemStack;
 import xczl.recursivecraft.registry.ModBlocks;
 import xczl.recursivecraft.registry.ModMenus;
 
-// 移除 javax.annotation.Nullable，改用 JetBrains 或 Minecraft 的 Nullable，或者不加也行，这里为了兼容性先去掉或使用 Minecraft 原生的
-// import javax.annotation.Nullable;
+//import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 public class RecursiveCrafterMenu extends AbstractContainerMenu {
 
-    private final BlockPos blockPos;
     private final ContainerLevelAccess access;
+    private final boolean isHandheld; // 新增标记
 
-    // 客户端构造函数 (由 MenuRegistry.ofExtended 自动调用)
+    // 客户端构造函数 (读取网络包)
     public RecursiveCrafterMenu(int windowId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        // 从 buffer 中读取 BlockPos (这对应了 Block 类里 writeBlockPos 的逻辑)
-        this(windowId, playerInventory, extraData.readBlockPos());
+        // 先调用一个私有构造辅助方法，或者在构造函数里处理逻辑
+        // 由于 super 必须第一行，我们只能在内部处理
+        super(ModMenus.RECURSIVE_CRAFTER_MENU.get(), windowId);
+
+        this.isHandheld = extraData.readBoolean(); // 读取标记
+        if (isHandheld) {
+            this.access = ContainerLevelAccess.NULL;
+        } else {
+            BlockPos pos = extraData.readBlockPos();
+            this.access = ContainerLevelAccess.create(playerInventory.player.level(), pos);
+        }
+
+        initLayout(playerInventory);
     }
 
     // 服务器/通用构造函数
-    public RecursiveCrafterMenu(int windowId, Inventory playerInventory, BlockPos pos) {
+    public RecursiveCrafterMenu(int windowId, Inventory playerInventory, @Nullable BlockPos pos) {
         super(ModMenus.RECURSIVE_CRAFTER_MENU.get(), windowId);
-        this.blockPos = (pos != null) ? pos : BlockPos.ZERO;
-        this.access = (pos != null) ? ContainerLevelAccess.create(playerInventory.player.level(), pos) : ContainerLevelAccess.NULL;
 
+        // 如果 pos 为 null，则认为是手持模式
+        this.isHandheld = (pos == null);
+
+        if (pos != null) {
+            this.access = ContainerLevelAccess.create(playerInventory.player.level(), pos);
+        } else {
+            this.access = ContainerLevelAccess.NULL;
+        }
+
+        initLayout(playerInventory);
+    }
+
+    // 提取布局逻辑，避免重复代码
+    private void initLayout(Inventory playerInventory) {
         if (playerInventory != null) {
-            // *** 布局修正 (沿用你之前的逻辑) ***
             int playerInvY = 140;
             int playerHotbarY = 198;
             int playerInvX = 48;
@@ -52,17 +74,16 @@ public class RecursiveCrafterMenu extends AbstractContainerMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        // 这里先返回空，如果需要 Shift 点击功能，可以在这里补充逻辑
         return ItemStack.EMPTY;
     }
 
     @Override
     public boolean stillValid(Player player) {
-        // 使用 ContainerLevelAccess 进行安全检查
+        // 如果是手持模式，直接返回 true (或者可以加一个校验：玩家手中是否持有该物品)
+        if (this.isHandheld) {
+            return true;
+        }
+        // 如果是方块模式，检查距离
         return stillValid(this.access, player, ModBlocks.RECURSIVE_CRAFTER_BLOCK.get());
-    }
-
-    public BlockPos getBlockPos() {
-        return blockPos;
     }
 }

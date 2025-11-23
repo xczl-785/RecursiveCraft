@@ -27,6 +27,9 @@ dependencies {
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+
+    include 'com.belerweb:pinyin4j:2.5.1'
+    implementation 'com.belerweb:pinyin4j:2.5.1'
 }
 
 processResources {

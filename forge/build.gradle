@@ -34,6 +34,16 @@ dependencies {
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
+
+    // [修复] Forge 端依赖配置
+    // 1. 编译时需要 (让代码不爆红)
+    implementation 'com.belerweb:pinyin4j:2.5.1'
+
+    // 2. [关键] 开发环境运行时需要 (防止 NoClassDefFoundError)
+    forgeRuntimeLibrary 'com.belerweb:pinyin4j:2.5.1'
+
+    // 3. 打包时需要 (把库塞进 Jar 包里)
+    shadowCommon 'com.belerweb:pinyin4j:2.5.1'
 }
 
 processResources {

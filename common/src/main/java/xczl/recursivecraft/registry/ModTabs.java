@@ -20,6 +20,7 @@ public class ModTabs {
                 // 修复：必须在这里把物品加进去
                 builder.displayItems((itemDisplayParameters, output) -> {
                     output.accept(ModItems.RECURSIVE_CRAFTER_ITEM.get());
+                    output.accept(ModItems.HANDHELD_CRAFTER_ITEM.get());
                 });
             })
     );

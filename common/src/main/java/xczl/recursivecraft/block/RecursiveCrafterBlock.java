@@ -33,8 +33,10 @@ public class RecursiveCrafterBlock extends Block {
         if (!level.isClientSide) {
             MenuProvider menuProvider = state.getMenuProvider(level, pos);
             if (menuProvider != null) {
-                // 显式指定 (FriendlyByteBuf buf)，这样 IDE 就能识别类型，writeBlockPos 也就不会报错了
                 MenuRegistry.openExtendedMenu((ServerPlayer) player, menuProvider, (FriendlyByteBuf buf) -> {
+                    // [修改] 写入 false，表示这是方块打开的
+                    buf.writeBoolean(false);
+                    // 只有方块打开时才写入 BlockPos
                     buf.writeBlockPos(pos);
                 });
             }
