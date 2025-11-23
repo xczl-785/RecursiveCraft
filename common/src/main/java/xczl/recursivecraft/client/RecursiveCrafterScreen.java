@@ -45,6 +45,8 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     private Button executeButton;
     private Item selectedItem = Items.AIR;
 
+    // [修复] 初始化为 null，确保第一次打开界面时必然触发刷新
+    private String lastSearchQuery = null;
 
     public RecursiveCrafterScreen(RecursiveCrafterMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -56,7 +58,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     protected void init() {
         super.init();
 
-        // 加载收藏配置
         ClientFavorites.load();
 
         this.gridLeft = this.leftPos + 11;
@@ -69,7 +70,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.inventoryLabelY = pageButtonY;
         this.inventoryLabelX = rightPanelX - 75;
 
-        // 获取数据并进行初始排序
+        // 初始化数据
         if (CraftingPlanner.isReady) {
             allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getPathMemo().keySet());
             sortItems(allCraftableItems);
@@ -97,25 +98,20 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             this.onExecutePressed();
         }).bounds(rightPanelX, executeButtonY, 60, 20).build());
 
+        // 触发第一次搜索，因为 lastSearchQuery 为 null，这里一定会执行
         onSearchUpdate(this.searchBox.getValue());
     }
 
-    /**
-     * [新增] 拦截按键事件，防止输入 "E" 时关闭界面
-     */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // 1. 让输入框优先处理标准按键
         if (this.searchBox.keyPressed(keyCode, scanCode, modifiers) || this.amountBox.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
-
-        // 2. 如果输入框处于聚焦状态，且按下了 "背包键" (默认E)，则拦截事件，防止界面关闭
+        // 屏蔽 E 键关闭界面
         if ((this.searchBox.isFocused() || this.amountBox.isFocused())
                 && this.minecraft.options.keyInventory.matches(keyCode, scanCode)) {
             return true;
         }
-
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
@@ -136,6 +132,13 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     private void onSearchUpdate(String query) {
         String lowerQuery = query.toLowerCase().trim();
 
+        // [关键修复] 防抖逻辑：只有当 query 真的改变时，才重置页码
+        // 初始化时 lastSearchQuery 为 null，"".equals(null) 为 false，所以第一次会通过
+        if (lowerQuery.equals(this.lastSearchQuery)) {
+            return;
+        }
+        this.lastSearchQuery = lowerQuery;
+
         List<Item> filtered = this.allCraftableItems.stream()
                 .filter(item -> {
                     String displayName = item.getDescription().getString();
@@ -151,7 +154,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         sortItems(filtered);
 
         this.filteredCraftableItems = filtered;
-        this.currentPage = 0;
+        this.currentPage = 0; // 只有真正搜索时才重置页码
         this.maxPage = Math.max(0, (this.filteredCraftableItems.size() - 1) / (GRID_COLS * GRID_ROWS));
         updatePageButtons();
     }
@@ -170,7 +173,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         } catch (NumberFormatException e) {
             amount = 1;
         }
-
         PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(this.selectedItem, amount));
     }
 
@@ -184,6 +186,15 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         this.renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTicks);
+
+        // [新增] 自动刷新逻辑：如果打开界面时配方还没算好，这里会检测到并自动加载
+        if (this.allCraftableItems.isEmpty() && CraftingPlanner.isReady) {
+            this.allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getPathMemo().keySet());
+            sortItems(this.allCraftableItems);
+            // 强制刷新一次列表
+            this.lastSearchQuery = null;
+            onSearchUpdate(this.searchBox.getValue());
+        }
 
         this.searchBox.render(graphics, mouseX, mouseY, partialTicks);
         this.amountBox.render(graphics, mouseX, mouseY, partialTicks);
@@ -206,9 +217,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         graphics.drawString(this.font, Component.literal("数量:"), rightPanelX_relative, 32, 0x404040, false);
 
         if (!CraftingPlanner.isReady) {
-            // [新增] 加载提示
             graphics.drawString(this.font, Component.literal("正在分析配方..."), 8, 50, 0xFF0000, false);
-            graphics.drawString(this.font, Component.literal("请稍后重开界面"), 8, 62, 0xFF0000, false);
         } else {
             String pageText = String.format("%d / %d", this.currentPage + 1, this.maxPage + 1);
             int gridTop_relative = 25;
@@ -247,7 +256,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
                 if (ClientFavorites.isFavorite(item)) {
                     tooltip.add(Component.literal("★ 已收藏").withStyle(ChatFormatting.YELLOW));
                 } else {
-                    // [修改] 提示文案改为 "右键"
                     tooltip.add(Component.literal("右键点击收藏").withStyle(ChatFormatting.DARK_GRAY));
                 }
 
@@ -276,24 +284,13 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             if (mouseX >= x && mouseX < (x + 16) && mouseY >= y && mouseY < (y + 16)) {
                 Item clickedItem = this.filteredCraftableItems.get(itemIndex);
 
-                // [优化] 右键点击收藏
-                if (button == 1) {
-                    // 1. 切换收藏状态
+                if (button == 1) { // 右键收藏
                     ClientFavorites.toggleFavorite(clickedItem);
-
-                    // 2. 播放音效 (可选，增加反馈感)
-                    // Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-
-                    // [重要改动]
-                    // 这里删除了 onSearchUpdate(...) 调用。
-                    // 这样物品会留在原地，星星立刻亮起，且不会跳转回第一页。
-                    // 只有当你下次搜索或重新打开 GUI 时，它才会排到最前面。
-
+                    // 注意：这里不调用 onSearchUpdate，避免页面跳动
                     return true;
                 }
 
-                // 左键点击选择
-                if (button == 0) {
+                if (button == 0) { // 左键选择
                     this.selectedItem = clickedItem;
                     return true;
                 }
