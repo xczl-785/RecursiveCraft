@@ -4,14 +4,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import xczl.recursivecraft.data.CraftingTransaction;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -22,13 +22,6 @@ public class CraftingTaskExecutor {
 
     /**
      * 尝试执行递归合成任务
-     *
-     * @param player         执行合成的玩家
-     * @param targetItem     目标物品
-     * @param amount         目标数量
-     * @param forcedRecipeId (可选) 强制使用的配方ID，如果为 null 则自动寻路
-     * @param msgSender      消息回调接口 (用于发送成功/失败/日志消息)
-     * @return 是否成功执行
      */
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, ResourceLocation forcedRecipeId, Consumer<Component> msgSender) {
         // 1. 基础校验
@@ -42,31 +35,25 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        // 2. 解析强制配方 (如果存在)
-        CraftingRecipe forcedRecipe = null;
+        // 2. 解析配方
+        CraftingRecipe usedRecipe = null;
         if (forcedRecipeId != null) {
-            Optional<? extends Recipe<?>> recipeOpt = player.level().getRecipeManager().byKey(forcedRecipeId);
-            // 校验：必须存在，且必须是 CraftingRecipe，且产物必须匹配目标物品
-            if (recipeOpt.isPresent() && recipeOpt.get() instanceof CraftingRecipe cr) {
-                // 这里加一个产物校验，防止客户端发来不匹配的配方ID
+            Optional<? extends Recipe<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
+            if (opt.isPresent() && opt.get() instanceof CraftingRecipe cr) {
                 if (cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
-                    forcedRecipe = cr;
-                } else {
-                    msgSender.accept(Component.literal("§c配方产物不匹配：" + forcedRecipeId));
-                    return false;
+                    usedRecipe = cr;
                 }
-            } else {
-                msgSender.accept(Component.literal("§c指定的配方无效或不存在：" + forcedRecipeId));
-                return false;
             }
+        }
+        if (usedRecipe == null) {
+            usedRecipe = CraftingPlanner.getInstance().getPathMemo().get(targetItem);
         }
 
         // 3. 计算事务
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
-        // 传入 forcedRecipe (可能为 null)
-        CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, forcedRecipe);
+        CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
 
-        // 加上最终产物 (Calculator 默认只计算消耗)
+        CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, recipeForCalc);
         transaction.addProvide(targetItem, amount);
 
         // 4. 获取净变化 (Net Deltas)
@@ -74,7 +61,6 @@ public class CraftingTaskExecutor {
         Map<Item, Integer> netNeeds = new HashMap<>();
         Map<Item, Integer> netProvides = new HashMap<>();
 
-        // 分离需求和产出
         for (Map.Entry<Item, Integer> entry : netDeltas.entrySet()) {
             if (entry.getValue() < 0) {
                 netNeeds.put(entry.getKey(), -entry.getValue());
@@ -83,42 +69,36 @@ public class CraftingTaskExecutor {
             }
         }
 
-        // 5. 打印调试日志
-        printDebugLog(msgSender, netNeeds, netProvides);
+        // === [优化] 先进行逻辑校验，通过后再打印日志 ===
+        // 这样做是为了防止打印“废案”的日志误导玩家。如果失败，我们只看诊断结果。
 
-        // 6. [死循环防御补丁]
-        // 检查：目标物品是否真的在“净产出”里？
+        // 5. [检查一] 死循环防御：净产出是否达标？
         int actualProvide = netProvides.getOrDefault(targetItem, 0);
         if (actualProvide < amount) {
-            msgSender.accept(Component.literal("§c合成失败：缺乏基础原料或配方存在死循环。"));
-            msgSender.accept(Component.literal("§7(系统检测到净产出无效，请检查是否拥有该物品的最基础原料)"));
+            // 失败：进入智能诊断 (此时不打印 Transaction Log)
+            reportMissingMaterials(player, amount, usedRecipe, msgSender);
             return false;
         }
 
-        // 7. 检查背包材料是否足够
-        Map<Item, Integer> missingMaterials = new HashMap<>();
+        // 6. [检查二] 基础材料是否充足？
+        boolean isMaterialsEnough = true;
         for (Map.Entry<Item, Integer> entry : netNeeds.entrySet()) {
-            Item neededItem = entry.getKey();
-            int neededAmount = entry.getValue();
-            int amountInInventory = player.getInventory().countItem(neededItem);
-            if (amountInInventory < neededAmount) {
-                missingMaterials.put(neededItem, neededAmount - amountInInventory);
+            if (player.getInventory().countItem(entry.getKey()) < entry.getValue()) {
+                isMaterialsEnough = false;
+                break;
             }
         }
 
-        if (!missingMaterials.isEmpty()) {
-            StringBuilder message = new StringBuilder("§c缺少材料: ");
-            for (Map.Entry<Item, Integer> missing : missingMaterials.entrySet()) {
-                message.append(missing.getValue())
-                        .append("x ")
-                        .append(missing.getKey().getDescription().getString())
-                        .append(", ");
-            }
-            msgSender.accept(Component.literal(message.substring(0, message.length() - 2)));
+        if (!isMaterialsEnough) {
+            // 失败：进入智能诊断 (此时不打印 Transaction Log)
+            reportMissingMaterials(player, amount, usedRecipe, msgSender);
             return false;
         }
 
-        // 8. 执行合成 (扣除材料，发放物品)
+        // === 只有成功时，才打印详细的事务日志 ===
+        printDebugLog(msgSender, netNeeds, netProvides);
+
+        // 7. 执行合成
         try {
             transaction.execute(player);
             msgSender.accept(Component.literal("§a合成成功: " + amount + "x " + targetItem.getDescription().getString()));
@@ -129,22 +109,93 @@ public class CraftingTaskExecutor {
         }
     }
 
-    private static void printDebugLog(Consumer<Component> msgSender, Map<Item, Integer> netNeeds, Map<Item, Integer> netProvides) {
-        msgSender.accept(Component.literal("§8--- [RecursiveCraft DEBUG] ---"));
+    /**
+     * [简化版] 智能缺失材料报告
+     * 逻辑：仅进行"贪婪匹配"，不尝试递归合成。
+     * 直接对比 [配方需求] 和 [当前背包]，报出第一层缺口。
+     */
+    private static void reportMissingMaterials(ServerPlayer player, int amount, CraftingRecipe recipe, Consumer<Component> msgSender) {
+        if (recipe == null) {
+            msgSender.accept(Component.literal("§c无法合成：未找到有效配方。"));
+            return;
+        }
 
-        msgSender.accept(Component.literal("§7【净消耗 (Net Needs)】"));
-        if (netNeeds.isEmpty()) {
-            msgSender.accept(Component.literal("  (无)"));
+        msgSender.accept(Component.literal("§e[分析合成失败原因...]"));
+
+        // 1. 模拟背包快照
+        Map<Item, Integer> virtualInv = new HashMap<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack s = player.getInventory().getItem(i);
+            if (!s.isEmpty()) {
+                virtualInv.put(s.getItem(), virtualInv.getOrDefault(s.getItem(), 0) + s.getCount());
+            }
+        }
+
+        // 2. 展开所有需求
+        int outputCount = recipe.getResultItem(player.level().registryAccess()).getCount();
+        if (outputCount < 1) outputCount = 1;
+        int crafts = (int) Math.ceil((double) amount / outputCount);
+
+        List<Ingredient> allIngredients = new ArrayList<>();
+        for (Ingredient ing : recipe.getIngredients()) {
+            if (!ing.isEmpty()) {
+                for (int i = 0; i < crafts; i++) {
+                    allIngredients.add(ing);
+                }
+            }
+        }
+
+        // 3. 贪婪匹配
+        Map<String, Integer> missingCounts = new HashMap<>();
+
+        for (Ingredient ing : allIngredients) {
+            boolean satisfied = false;
+            ItemStack[] options = ing.getItems();
+
+            // 尝试在背包里找现货
+            for (ItemStack option : options) {
+                Item item = option.getItem();
+                int has = virtualInv.getOrDefault(item, 0);
+                if (has > 0) {
+                    virtualInv.put(item, has - 1);
+                    satisfied = true;
+                    break;
+                }
+            }
+
+            if (!satisfied) {
+                // 取个名字 (通常取第一个匹配项)
+                String name = (options.length > 0) ? options[0].getHoverName().getString() : "未知材料";
+                missingCounts.put(name, missingCounts.getOrDefault(name, 0) + 1);
+            }
+        }
+
+        // 4. 输出报告
+        if (missingCounts.isEmpty()) {
+            msgSender.accept(Component.literal("§c合成结构异常 (可能是配方死循环)。"));
         } else {
+            StringBuilder sb = new StringBuilder("§c缺少材料: ");
+            missingCounts.forEach((name, count) -> {
+                sb.append(count).append("x ").append(name).append(", ");
+            });
+            msgSender.accept(Component.literal(sb.substring(0, sb.length() - 2)));
+        }
+    }
+
+    private static void printDebugLog(Consumer<Component> msgSender, Map<Item, Integer> netNeeds, Map<Item, Integer> netProvides) {
+        msgSender.accept(Component.literal("§8--- [RecursiveCraft Transaction] ---"));
+
+        // 打印消耗
+        if (!netNeeds.isEmpty()) {
+            msgSender.accept(Component.literal("§7消耗 (Consumes):"));
             netNeeds.forEach((item, itemAmount) ->
                     msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
             );
         }
 
-        msgSender.accept(Component.literal("§7【净产出 (Net Provides)】"));
-        if (netProvides.isEmpty()) {
-            msgSender.accept(Component.literal("  (无)"));
-        } else {
+        // 打印产出
+        if (!netProvides.isEmpty()) {
+            msgSender.accept(Component.literal("§7产出 (Produces):"));
             netProvides.forEach((item, itemAmount) ->
                     msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
             );
