@@ -1,6 +1,7 @@
 package xczl.recursivecraft;
 
 import com.google.common.base.Suppliers;
+import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.registry.registries.RegistrarManager;
 import dev.architectury.utils.Env;
@@ -8,6 +9,7 @@ import dev.architectury.utils.EnvExecutor;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import xczl.recursivecraft.command.RecursiveCraftCommand;
 import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.networking.PacketHandler;
@@ -34,6 +36,10 @@ public class RecursiveCraft {
 
         // 3. 注册网络
         PacketHandler.register();
+
+        CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> {
+            RecursiveCraftCommand.register(dispatcher, registry);
+        });
 
         // 4. 监听服务器启动事件
         LifecycleEvent.SERVER_STARTING.register(server -> {

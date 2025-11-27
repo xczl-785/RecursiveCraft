@@ -14,12 +14,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 合成事务计算器 (战术执行者 - DFS 修复版).
- * <p>
- * 修复日志:
- * 1. 修正了配方成功判定逻辑 (isTransactionSatisfied)。
- * 之前错误地要求 netNeeds 为空，导致消耗基础材料(如原木)的配方被误判为失败。
- * 现在只要库存消耗量 >= 需求量，即视为成功。
+ * 合成事务计算器 (支持指定配方版).
  */
 public class TransactionCalculator {
 
@@ -46,7 +41,18 @@ public class TransactionCalculator {
         this.costMemo = CraftingPlanner.getInstance().getCostMemo();
     }
 
+    /**
+     * 计算合成事务 (自动寻路)
+     */
     public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget) {
+        return calculate(target, amount, isFinalTarget, null);
+    }
+
+    /**
+     * 计算合成事务 (支持强制指定首层配方)
+     * @param forcedRecipe 如果不为 null，则第一步合成强制使用该配方
+     */
+    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, CraftingRecipe forcedRecipe) {
         // 1. 初始化虚拟库存
         Map<Item, Integer> virtualInventory = new HashMap<>();
         for (int i = 0; i < playerInventory.getContainerSize(); i++) {
@@ -56,13 +62,17 @@ public class TransactionCalculator {
             }
         }
 
-        RecursiveCraft.LOGGER.info("--- [CALCULATION START (DFS Mode)] ---");
-        RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
+        RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
+        if (forcedRecipe != null) {
+            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.getId());
+        } else {
+            RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
+        }
 
         Set<Item> recursionStack = new HashSet<>();
         this.uncraftableCache.clear();
 
-        CraftingTransaction result = calculateRecursive(target, amount, isFinalTarget, virtualInventory, 1, recursionStack);
+        CraftingTransaction result = calculateRecursive(target, amount, isFinalTarget, virtualInventory, 1, recursionStack, forcedRecipe);
 
         RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
         return result;
@@ -72,7 +82,9 @@ public class TransactionCalculator {
     // 核心逻辑层级 1: 递归入口与库存管理
     // ======================================================================
 
-    private CraftingTransaction calculateRecursive(Item target, int amount, boolean isFinalTarget, Map<Item, Integer> virtualInventory, int debugDepth, Set<Item> recursionStack) {
+    private CraftingTransaction calculateRecursive(Item target, int amount, boolean isFinalTarget,
+                                                   Map<Item, Integer> virtualInventory, int debugDepth,
+                                                   Set<Item> recursionStack, CraftingRecipe forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
         CraftingTransaction currentTransaction = new CraftingTransaction();
 
@@ -95,6 +107,7 @@ public class TransactionCalculator {
         recursionStack.add(target);
         try {
             // 2. 优先消耗库存
+            // 即使指定了配方，依然优先消耗现有成品（除非逻辑有变，目前保持原样）
             int amountInInventory = 0;
             if (!isFinalTarget) {
                 amountInInventory = virtualInventory.getOrDefault(target, 0);
@@ -112,7 +125,7 @@ public class TransactionCalculator {
             }
 
             // 4. 委托决策层
-            CraftingTransaction craftTx = findAndApplyBestRecipe(target, amountToCraft, virtualInventory, debugDepth, recursionStack);
+            CraftingTransaction craftTx = findAndApplyBestRecipe(target, amountToCraft, virtualInventory, debugDepth, recursionStack, forcedRecipe);
 
             // 5. 判定失败缓存
             if (shouldCacheAsFailure(target, craftTx, amountToCraft)) {
@@ -131,32 +144,42 @@ public class TransactionCalculator {
     // 核心逻辑层级 2: 配方决策与快照模拟
     // ======================================================================
 
-    private CraftingTransaction findAndApplyBestRecipe(Item target, int amountToCraft, Map<Item, Integer> virtualInventory, int debugDepth, Set<Item> recursionStack) {
+    private CraftingTransaction findAndApplyBestRecipe(Item target, int amountToCraft,
+                                                       Map<Item, Integer> virtualInventory, int debugDepth,
+                                                       Set<Item> recursionStack, CraftingRecipe forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
+        List<CraftingRecipe> candidates;
 
-        // 注意：此处需要 CraftingPlanner.getRecipesFor
-        List<CraftingRecipe> candidates = new ArrayList<>(CraftingPlanner.getInstance().getRecipesFor(target));
+        // === [核心修改] 强制配方逻辑 ===
+        if (forcedRecipe != null) {
+            // 强制模式：只尝试这一个配方
+            candidates = Collections.singletonList(forcedRecipe);
+            RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.getId());
+        } else {
+            // 自动模式：从规划器获取候选列表
+            candidates = new ArrayList<>(CraftingPlanner.getInstance().getRecipesFor(target));
+        }
 
         if (candidates.isEmpty()) {
             // 这是一个基础物品（无配方），或者确实缺配方
-            // 只有当它是我们要找的目标配方时才打印 Log，避免递归中大量 Base Item 刷屏
-            // RecursiveCraft.LOGGER.debug("{}-> No Recipe for {}. Missing: {}", indent, target.getDescription().getString(), amountToCraft);
             CraftingTransaction tx = new CraftingTransaction();
             tx.addNeed(target, amountToCraft);
             return tx;
         }
 
-        // 排序优化
+        // 排序优化 (仅当有多个候选时有意义)
         CraftingRecipe theoreticalBest = pathMemo.get(target);
-        candidates.sort((r1, r2) -> {
-            boolean s1 = checkShallowRecipe(r1, virtualInventory);
-            boolean s2 = checkShallowRecipe(r2, virtualInventory);
-            if (s1 && !s2) return -1;
-            if (!s1 && s2) return 1;
-            if (r1 == theoreticalBest) return -1;
-            if (r2 == theoreticalBest) return 1;
-            return 0;
-        });
+        if (candidates.size() > 1) {
+            candidates.sort((r1, r2) -> {
+                boolean s1 = checkShallowRecipe(r1, virtualInventory);
+                boolean s2 = checkShallowRecipe(r2, virtualInventory);
+                if (s1 && !s2) return -1;
+                if (!s1 && s2) return 1;
+                if (r1 == theoreticalBest) return -1;
+                if (r2 == theoreticalBest) return 1;
+                return 0;
+            });
+        }
 
         CraftingTransaction bestFailure = null;
 
@@ -167,10 +190,12 @@ public class TransactionCalculator {
             // [模拟]
             CraftingTransaction trialTx = simulateRecipe(recipe, amountToCraft, snapshotInventory, debugDepth, recursionStack);
 
-            // [判定] 关键修复：检查需求是否被库存满足
+            // [判定] 检查需求是否被库存满足
             if (isTransactionSatisfied(trialTx, virtualInventory, snapshotInventory)) {
                 // >>> 成功 <<<
-                RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
+                if (forcedRecipe == null) {
+                    RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
+                }
                 virtualInventory.putAll(snapshotInventory); // Commit
                 return trialTx;
             } else {
@@ -188,7 +213,9 @@ public class TransactionCalculator {
     // 核心逻辑层级 3: 单个配方执行模拟
     // ======================================================================
 
-    private CraftingTransaction simulateRecipe(CraftingRecipe recipe, int amountToCraft, Map<Item, Integer> virtualInventory, int debugDepth, Set<Item> recursionStack) {
+    private CraftingTransaction simulateRecipe(CraftingRecipe recipe, int amountToCraft,
+                                               Map<Item, Integer> virtualInventory, int debugDepth,
+                                               Set<Item> recursionStack) {
         CraftingTransaction tx = new CraftingTransaction();
 
         int outputCount = recipe.getResultItem(null).getCount();
@@ -207,6 +234,7 @@ public class TransactionCalculator {
 
         for (IngredientNeed need : needsList) {
             int totalNeed = need.amount * recipeRuns;
+            // 解析子原料
             CraftingTransaction subTx = resolveIngredient(need.ingredient, totalNeed, virtualInventory, debugDepth + 1, recursionStack);
             tx.merge(subTx);
         }
@@ -226,12 +254,15 @@ public class TransactionCalculator {
     // 核心逻辑层级 4: 原料/Tag 解析
     // ======================================================================
 
-    private CraftingTransaction resolveIngredient(Ingredient ingredient, int totalNeed, Map<Item, Integer> virtualInventory, int debugDepth, Set<Item> recursionStack) {
+    private CraftingTransaction resolveIngredient(Ingredient ingredient, int totalNeed,
+                                                  Map<Item, Integer> virtualInventory, int debugDepth,
+                                                  Set<Item> recursionStack) {
         ItemStack[] options = ingredient.getItems();
         if (options.length == 0) return new CraftingTransaction();
 
         if (options.length == 1) {
-            return calculateRecursive(options[0].getItem(), totalNeed, false, virtualInventory, debugDepth, recursionStack);
+            // [关键] 递归调用子项时，forcedRecipe 必须传 null，确保子材料自动寻优
+            return calculateRecursive(options[0].getItem(), totalNeed, false, virtualInventory, debugDepth, recursionStack, null);
         }
 
         // 多选项 Tag 处理
@@ -254,7 +285,8 @@ public class TransactionCalculator {
         for (Item itemOption : sortedOptions) {
             Map<Item, Integer> snapshotInventory = new HashMap<>(virtualInventory);
 
-            CraftingTransaction trialTx = calculateRecursive(itemOption, totalNeed, false, snapshotInventory, debugDepth, recursionStack);
+            // [关键] 递归调用子项时，forcedRecipe 必须传 null
+            CraftingTransaction trialTx = calculateRecursive(itemOption, totalNeed, false, snapshotInventory, debugDepth, recursionStack, null);
 
             // [判定]
             if (isTransactionSatisfied(trialTx, virtualInventory, snapshotInventory)) {
@@ -269,16 +301,9 @@ public class TransactionCalculator {
     }
 
     // ======================================================================
-    // 关键修复：成功判定逻辑
+    // 成功判定与辅助逻辑 (保持不变)
     // ======================================================================
 
-    /**
-     * 判断一个事务产生的 Net Needs 是否已经被库存消耗所覆盖。
-     * @param tx 产生的事务 (包含 Needs)
-     * @param startInv 模拟开始时的库存
-     * @param endInv 模拟结束时的库存 (已被扣减)
-     * @return true 如果所有需求都通过库存扣减得到了满足
-     */
     private boolean isTransactionSatisfied(CraftingTransaction tx, Map<Item, Integer> startInv, Map<Item, Integer> endInv) {
         Map<Item, Integer> netDeltas = tx.getNetDeltas();
 
@@ -289,12 +314,12 @@ public class TransactionCalculator {
             // 我们只关心需求 (Needs)
             if (delta >= 0) continue;
 
-            int amountNeeded = -delta; // 需要多少 (e.g., 2)
+            int amountNeeded = -delta;
 
             // 计算库存实际消耗了多少
             int startCount = startInv.getOrDefault(item, 0);
             int endCount = endInv.getOrDefault(item, 0);
-            int consumed = startCount - endCount; // e.g., 10 - 8 = 2
+            int consumed = startCount - endCount;
 
             // 如果 消耗量 < 需求量，说明不仅吃光了库存，还有缺口 -> 失败
             if (consumed < amountNeeded) {
@@ -304,10 +329,6 @@ public class TransactionCalculator {
 
         return true;
     }
-
-    // ======================================================================
-    // 辅助方法
-    // ======================================================================
 
     private double getCost(Item item) {
         CostMap map = costMemo.get(item);
