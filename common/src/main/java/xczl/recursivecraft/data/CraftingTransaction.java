@@ -50,14 +50,14 @@ public class CraftingTransaction {
         other.provides.forEach(this::addProvide);
     }
 
-    // <<< [修复] 新增方法：计算“净变化” >>>
+    // <<< [修复] 新增方法：计算"净变化" >>>
     /**
-     * 计算此事务的“净”物品变化 (Provides - Needs)。
+     * 计算此事务的"净"物品变化 (Provides - Needs)。
      * 这是修复 "木斧Bug" 的核心。
      *
      * @return 一个 Map<Item, Integer>。
-     * 负数 (e.g. -1) 表示“净需求”(最终需要从玩家处获取 1 个)。
-     * 正数 (e.g. 2) 表示“净产出”(最终需要给予玩家 2 个)。
+     * 负数 (e.g. -1) 表示"净需求"(最终需要从玩家处获取 1 个)。
+     * 正数 (e.g. 2) 表示"净产出"(最终需要给予玩家 2 个)。
      */
     public Map<Item, Integer> getNetDeltas() {
         // 1. 使用 Provides (产出, 正数) 初始化 "净值" 表

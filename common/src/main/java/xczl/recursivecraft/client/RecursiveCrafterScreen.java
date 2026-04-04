@@ -71,8 +71,8 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.inventoryLabelX = rightPanelX - 75;
 
         // 初始化数据
-        if (CraftingPlanner.isReady) {
-            allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getPathMemo().keySet());
+        if (CraftingPlanner.getInstance().isReady()) {
+            allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getResult().getPathMemo().keySet());
             sortItems(allCraftableItems);
         }
 
@@ -188,8 +188,8 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         super.render(graphics, mouseX, mouseY, partialTicks);
 
         // [新增] 自动刷新逻辑：如果打开界面时配方还没算好，这里会检测到并自动加载
-        if (this.allCraftableItems.isEmpty() && CraftingPlanner.isReady) {
-            this.allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getPathMemo().keySet());
+        if (this.allCraftableItems.isEmpty() && CraftingPlanner.getInstance().isReady()) {
+            this.allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getResult().getPathMemo().keySet());
             sortItems(this.allCraftableItems);
             // 强制刷新一次列表
             this.lastSearchQuery = null;
@@ -216,7 +216,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         graphics.drawString(this.font, Component.literal("产物:"), rightPanelX_relative, 10, 0x404040, false);
         graphics.drawString(this.font, Component.literal("数量:"), rightPanelX_relative, 32, 0x404040, false);
 
-        if (!CraftingPlanner.isReady) {
+        if (!CraftingPlanner.getInstance().isReady()) {
             graphics.drawString(this.font, Component.literal("正在分析配方..."), 8, 50, 0xFF0000, false);
         } else {
             String pageText = String.format("%d / %d", this.currentPage + 1, this.maxPage + 1);

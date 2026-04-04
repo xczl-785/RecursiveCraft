@@ -31,8 +31,14 @@ class TransactionCalculatorTest {
 
     @BeforeEach
     void resetPlannerCaches() {
-        CraftingPlanner.getInstance().getPathMemo().clear();
-        CraftingPlanner.getInstance().getCostMemo().clear();
+        // PlanningResult 现在是不可变的，测试中通过反射重置为 EMPTY
+        try {
+            java.lang.reflect.Field resultField = CraftingPlanner.class.getDeclaredField("result");
+            resultField.setAccessible(true);
+            resultField.set(CraftingPlanner.getInstance(), CraftingPlanner.PlanningResult.EMPTY);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to reset CraftingPlanner for test", e);
+        }
     }
 
     @Test

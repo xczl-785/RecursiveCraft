@@ -37,7 +37,7 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        if (!CraftingPlanner.isReady) {
+        if (!CraftingPlanner.getInstance().isReady()) {
             msgSender.accept(Component.literal("§c合成系统正在初始化，请稍候..."));
             return false;
         }
@@ -48,7 +48,7 @@ public class CraftingTaskExecutor {
         NetChanges netChanges = splitNetChanges(transaction);
 
         // === [优化] 先进行逻辑校验，通过后再打印日志 ===
-        // 这样做是为了防止打印“废案”的日志误导玩家。如果失败，我们只看诊断结果。
+        // 这样做是为了防止打印"废案"的日志误导玩家。如果失败，我们只看诊断结果。
 
         // 5. [检查一] 死循环防御：净产出是否达标？
         if (!hasEnoughTargetProvide(targetItem, amount, netChanges.provides)) {
@@ -71,9 +71,16 @@ public class CraftingTaskExecutor {
         return executeTransaction(player, targetItem, amount, transaction, msgSender);
     }
 
+    /** 单次合成数量上限（一背包 = 36格 × 64 = 2304） */
+    private static final int MAX_CRAFT_AMOUNT = 2304;
+
     private static boolean isValidRequest(Item targetItem, int amount, Consumer<Component> msgSender) {
         if (targetItem == Items.AIR || amount <= 0) {
             msgSender.accept(Component.literal("§c合成请求无效。"));
+            return false;
+        }
+        if (amount > MAX_CRAFT_AMOUNT) {
+            msgSender.accept(Component.literal("§c合成数量超过上限 (" + MAX_CRAFT_AMOUNT + ")。"));
             return false;
         }
         return true;
@@ -84,13 +91,13 @@ public class CraftingTaskExecutor {
         if (forcedRecipeId != null) {
             Optional<? extends Recipe<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
             if (opt.isPresent() && opt.get() instanceof CraftingRecipe cr) {
-                if (cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
+                if (!cr.isSpecial() && cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
                     usedRecipe = cr;
                 }
             }
         }
         if (usedRecipe == null) {
-            usedRecipe = CraftingPlanner.getInstance().getPathMemo().get(targetItem);
+            usedRecipe = CraftingPlanner.getInstance().getResult().getPathMemo().get(targetItem);
         }
         return usedRecipe;
     }

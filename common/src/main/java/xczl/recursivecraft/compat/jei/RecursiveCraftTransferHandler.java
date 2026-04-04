@@ -78,7 +78,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
             if (!doTransfer) return null; // 检查通过，显示蓝色/绿色按钮
 
             // 发送递归合成包
-            // [核心修改] 传入 recipe.getId()，实现“所见即所得”的指定配方合成
+            // [核心修改] 传入 recipe.getId()，实现"所见即所得"的指定配方合成
             int craftAmount = maxTransfer ? 64 : 1;
             PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(
                     output.getItem(),

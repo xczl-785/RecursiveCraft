@@ -52,8 +52,7 @@ public class TransactionCalculator {
         }
     }
 
-    private final Map<Item, CraftingRecipe> pathMemo;
-    private final Map<Item, CostMap> costMemo;
+    private final CraftingPlanner.PlanningResult planningResult;
     private final Inventory playerInventory;
     private final RecipeCandidateStrategy recipeCandidateStrategy;
     private final IngredientOptionStrategy ingredientOptionStrategy;
@@ -64,8 +63,7 @@ public class TransactionCalculator {
 
     public TransactionCalculator(Inventory playerInventory) {
         this.playerInventory = playerInventory;
-        this.pathMemo = CraftingPlanner.getInstance().getPathMemo();
-        this.costMemo = CraftingPlanner.getInstance().getCostMemo();
+        this.planningResult = CraftingPlanner.getInstance().getResult();
         this.recipeCandidateStrategy = new DefaultRecipeCandidateStrategy();
         this.ingredientOptionStrategy = new DefaultIngredientOptionStrategy();
         this.satisfactionPolicy = new NetDeltaSatisfactionPolicy();
@@ -160,7 +158,7 @@ public class TransactionCalculator {
             return createNeedOnlyTransaction(target, amountToCraft);
         }
 
-        CraftingRecipe theoreticalBest = pathMemo.get(target);
+        CraftingRecipe theoreticalBest = planningResult.getPathMemo().get(target);
         recipeCandidateStrategy.sortCandidates(candidates, theoreticalBest, context.virtualInventory);
 
         CraftingTransaction bestFailure = tryRecipeCandidates(candidates, theoreticalBest, target, amountToCraft, context, debugDepth, forcedRecipe, indent);
@@ -258,7 +256,7 @@ public class TransactionCalculator {
     }
 
     private double getCost(Item item) {
-        CostMap map = costMemo.get(item);
+        CostMap map = planningResult.getCostMemo().get(item);
         return map != null ? map.getTotalItemCost() : Double.MAX_VALUE;
     }
 
@@ -322,7 +320,7 @@ public class TransactionCalculator {
             RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.getId());
             return Collections.singletonList(forcedRecipe);
         }
-        return new ArrayList<>(CraftingPlanner.getInstance().getRecipesFor(target));
+        return new ArrayList<>(planningResult.getRecipesFor(target));
     }
 
     private CraftingTransaction createNeedOnlyTransaction(Item target, int amountToCraft) {

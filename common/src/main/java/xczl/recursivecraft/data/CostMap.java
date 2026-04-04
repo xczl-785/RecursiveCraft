@@ -2,6 +2,7 @@ package xczl.recursivecraft.data;
 
 import net.minecraft.world.item.Item;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,9 +22,9 @@ public class CostMap {
         this.baseMaterials = new HashMap<>();
     }
 
-    // 无限成本构造器 (用于循环检测)
+    // 无限成本构造器 (用于循环检测，baseMaterials 使用不可变空 Map)
     private CostMap(boolean isInfinite) {
-        this.baseMaterials = new HashMap<>();
+        this.baseMaterials = Collections.unmodifiableMap(new HashMap<>());
         this.totalCost = Double.MAX_VALUE;
     }
 

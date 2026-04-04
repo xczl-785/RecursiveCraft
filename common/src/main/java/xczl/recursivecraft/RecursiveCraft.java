@@ -44,9 +44,12 @@ public class RecursiveCraft {
         // 4. 监听服务器启动事件
         LifecycleEvent.SERVER_STARTING.register(server -> {
             LOGGER.info("Server is starting, triggering CraftingPlanner...");
-            new Thread(() -> {
+            Thread plannerThread = new Thread(() -> {
                 CraftingPlanner.getInstance().buildOptimalPathTree(server.getRecipeManager());
-            }).start();
+            }, "RecursiveCraft-Planner");
+            plannerThread.setUncaughtExceptionHandler((t, e) ->
+                    LOGGER.error("CraftingPlanner failed unexpectedly", e));
+            plannerThread.start();
         });
 
         // 5. 安全加载客户端入口
