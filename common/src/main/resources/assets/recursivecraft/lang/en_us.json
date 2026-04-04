@@ -21,5 +21,8 @@
   "recursivecraft.msg.missing_materials": "§cMissing materials: %s",
   "recursivecraft.msg.invalid_recipe": "Invalid recipe",
   "recursivecraft.msg.recipe_too_large": "Recipe too large, hold Ctrl + click for recursive crafting",
-  "recursivecraft.msg.missing_ingredients": "Missing ingredients"
+  "recursivecraft.msg.missing_ingredients": "Missing ingredients",
+  "recursivecraft.msg.debug_consumes": "§7Consumes:",
+  "recursivecraft.msg.debug_produces": "§7Produces:",
+  "recursivecraft.msg.unknown_material": "Unknown material"
 }

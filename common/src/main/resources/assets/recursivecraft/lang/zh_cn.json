@@ -21,5 +21,8 @@
   "recursivecraft.msg.missing_materials": "§c缺少材料: %s",
   "recursivecraft.msg.invalid_recipe": "配方无效",
   "recursivecraft.msg.recipe_too_large": "配方过大，请按 Ctrl + 点击 进行递归合成",
-  "recursivecraft.msg.missing_ingredients": "缺少材料"
+  "recursivecraft.msg.missing_ingredients": "缺少材料",
+  "recursivecraft.msg.debug_consumes": "§7消耗 (Consumes):",
+  "recursivecraft.msg.debug_produces": "§7产出 (Produces):",
+  "recursivecraft.msg.unknown_material": "未知材料"
 }

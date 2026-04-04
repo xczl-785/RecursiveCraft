@@ -206,7 +206,7 @@ public class CraftingTaskExecutor {
         for (Ingredient ing : allIngredients) {
             if (!consumeOneMatchingItem(virtualInv, ing)) {
                 ItemStack[] options = ing.getItems();
-                String name = (options.length > 0) ? options[0].getHoverName().getString() : "未知材料";
+                String name = (options.length > 0) ? options[0].getHoverName().getString() : Component.translatable("recursivecraft.msg.unknown_material").getString();
                 missingCounts.put(name, missingCounts.getOrDefault(name, 0) + 1);
             }
         }
@@ -230,7 +230,7 @@ public class CraftingTaskExecutor {
 
         // 打印消耗
         if (!netNeeds.isEmpty()) {
-            msgSender.accept(Component.literal("§7消耗 (Consumes):"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
             netNeeds.forEach((item, itemAmount) ->
                     msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
             );
@@ -238,7 +238,7 @@ public class CraftingTaskExecutor {
 
         // 打印产出
         if (!netProvides.isEmpty()) {
-            msgSender.accept(Component.literal("§7产出 (Produces):"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.debug_produces"));
             netProvides.forEach((item, itemAmount) ->
                     msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
             );
