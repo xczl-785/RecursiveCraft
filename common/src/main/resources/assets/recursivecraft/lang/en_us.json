@@ -1,0 +1,25 @@
+{
+  "itemGroup.recursivecraft.recursive_craft_tab": "Recursive Craft",
+  "block.recursivecraft.recursive_crafter": "Recursive Crafter",
+  "item.recursivecraft.handheld_crafter": "Handheld Crafter",
+
+  "recursivecraft.gui.execute": "Craft",
+  "recursivecraft.gui.output": "Output:",
+  "recursivecraft.gui.amount": "Amount:",
+  "recursivecraft.gui.analyzing": "Analyzing recipes...",
+  "recursivecraft.gui.favorited": "★ Favorited",
+  "recursivecraft.gui.right_click_favorite": "Right-click to favorite",
+
+  "recursivecraft.msg.crafting_init": "§cCrafting system is initializing, please wait...",
+  "recursivecraft.msg.invalid_request": "§cInvalid crafting request.",
+  "recursivecraft.msg.amount_over_limit": "§cAmount exceeds limit (%s).",
+  "recursivecraft.msg.craft_success": "§aCrafted: %sx %s",
+  "recursivecraft.msg.craft_fail": "§cCrafting failed: %s",
+  "recursivecraft.msg.no_recipe": "§cCannot craft: no valid recipe found.",
+  "recursivecraft.msg.analyzing": "§e[Analyzing crafting failure...]",
+  "recursivecraft.msg.cycle_detected": "§cCrafting structure error (possible recipe cycle).",
+  "recursivecraft.msg.missing_materials": "§cMissing materials: %s",
+  "recursivecraft.msg.invalid_recipe": "Invalid recipe",
+  "recursivecraft.msg.recipe_too_large": "Recipe too large, hold Ctrl + click for recursive crafting",
+  "recursivecraft.msg.missing_ingredients": "Missing ingredients"
+}

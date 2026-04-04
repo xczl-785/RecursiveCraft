@@ -6,8 +6,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.core.registries.BuiltInRegistries;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.utils.InventoryUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -99,10 +101,10 @@ public class TransactionCalculator {
         try {
             // 2. 优先消耗库存
             // 即使指定了配方，依然优先消耗现有成品（除非逻辑有变，目前保持原样）
-            int amountInInventory = consumeFromVirtualInventory(target, amount, isFinalTarget, context.virtualInventory, currentTransaction);
+            int consumed = consumeFromVirtualInventory(target, amount, isFinalTarget, context.virtualInventory, currentTransaction);
 
             // 3. 计算仍需合成
-            int amountToCraft = amount - amountInInventory;
+            int amountToCraft = amount - consumed;
             if (amountToCraft <= 0) {
                 return currentTransaction;
             }
@@ -159,7 +161,10 @@ public class TransactionCalculator {
         Map<String, IngredientNeed> aggregatedNeeds = new HashMap<>();
         for (Ingredient ingredient : recipe.getIngredients()) {
             if (ingredient.isEmpty()) continue;
-            String key = ingredient.toString();
+            String key = Arrays.stream(ingredient.getItems())
+                    .map(s -> BuiltInRegistries.ITEM.getKey(s.getItem()).toString())
+                    .sorted()
+                    .collect(Collectors.joining("|"));
             aggregatedNeeds.computeIfAbsent(key, k -> new IngredientNeed(ingredient, 0)).amount++;
         }
 
@@ -262,14 +267,7 @@ public class TransactionCalculator {
     }
 
     private Map<Item, Integer> snapshotPlayerInventory() {
-        Map<Item, Integer> virtualInventory = new HashMap<>();
-        for (int i = 0; i < playerInventory.getContainerSize(); i++) {
-            ItemStack stack = playerInventory.getItem(i);
-            if (!stack.isEmpty()) {
-                virtualInventory.put(stack.getItem(), virtualInventory.getOrDefault(stack.getItem(), 0) + stack.getCount());
-            }
-        }
-        return virtualInventory;
+        return InventoryUtils.snapshot(playerInventory);
     }
 
     private void logCalculationStart(Item target, int amount, CraftingRecipe forcedRecipe) {
@@ -287,11 +285,12 @@ public class TransactionCalculator {
 
         int amountInInventory = virtualInventory.getOrDefault(target, 0);
         if (amountInInventory > 0) {
-            int amountToConsume = Math.min(amount, amountInInventory);
-            currentTransaction.addNeed(target, amountToConsume);
-            virtualInventory.put(target, amountInInventory - amountToConsume);
+            int consumed = Math.min(amount, amountInInventory);
+            currentTransaction.addNeed(target, consumed);
+            virtualInventory.put(target, amountInInventory - consumed);
+            return consumed;
         }
-        return amountInInventory;
+        return 0;
     }
 
     private List<CraftingRecipe> collectCandidateRecipes(Item target, CraftingRecipe forcedRecipe, String indent) {

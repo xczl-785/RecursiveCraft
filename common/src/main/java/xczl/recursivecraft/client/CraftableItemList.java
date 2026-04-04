@@ -7,7 +7,9 @@ import xczl.recursivecraft.utils.PinyinUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -18,7 +20,11 @@ public class CraftableItemList {
 
     private static final int PAGE_SIZE = 8 * 6; // GRID_COLS * GRID_ROWS
 
+    /** 每个物品预计算的拼音数据，避免搜索时重复计算 */
+    private record PinyinEntry(String initials, String fullPinyin, String fullPinyinNoSpace) {}
+
     private List<Item> allItems = new ArrayList<>();
+    private Map<Item, PinyinEntry> pinyinCache = new HashMap<>();
     private List<Item> filteredItems = new ArrayList<>();
     private String lastSearchQuery = null;
     private int currentPage = 0;
@@ -30,9 +36,23 @@ public class CraftableItemList {
             return false;
         }
         allItems = new ArrayList<>(CraftingPlanner.getInstance().getResult().getPathMemo().keySet());
+        buildPinyinCache();
         sortItems(allItems);
         lastSearchQuery = null; // 强制下次搜索时刷新
         return true;
+    }
+
+    private void buildPinyinCache() {
+        pinyinCache = new HashMap<>(allItems.size());
+        for (Item item : allItems) {
+            String displayName = item.getDescription().getString();
+            String full = PinyinUtils.toFullPinyin(displayName);
+            pinyinCache.put(item, new PinyinEntry(
+                    PinyinUtils.toInitials(displayName),
+                    full,
+                    full.replace(" ", "")
+            ));
+        }
     }
 
     public boolean isLoaded() {
@@ -49,10 +69,18 @@ public class CraftableItemList {
 
         filteredItems = allItems.stream()
                 .filter(item -> {
-                    String displayName = item.getDescription().getString();
+                    if (lowerQuery.isEmpty()) return true;
+                    String displayName = item.getDescription().getString().toLowerCase();
+                    if (displayName.contains(lowerQuery)) return true;
                     String registryId = BuiltInRegistries.ITEM.getKey(item).toString();
-                    if (PinyinUtils.matches(displayName, query)) return true;
-                    return registryId.contains(lowerQuery);
+                    if (registryId.contains(lowerQuery)) return true;
+                    PinyinEntry pinyin = pinyinCache.get(item);
+                    if (pinyin != null) {
+                        if (pinyin.initials().contains(lowerQuery)) return true;
+                        if (pinyin.fullPinyin().contains(lowerQuery)) return true;
+                        if (pinyin.fullPinyinNoSpace().contains(lowerQuery)) return true;
+                    }
+                    return false;
                 })
                 .collect(Collectors.toList());
 

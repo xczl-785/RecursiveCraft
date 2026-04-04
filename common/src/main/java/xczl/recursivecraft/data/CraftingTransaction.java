@@ -117,9 +117,7 @@ public class CraftingTransaction {
                 Item item = entry.getKey();
                 int totalAmountToGive = entry.getValue();
 
-                // 获取该物品的最大堆叠数
-                // 注意：一般直接用 item.getMaxStackSize() 即可，但在某些版本可能需要通过 ItemStack 获取
-                int maxStackSize = new ItemStack(item).getMaxStackSize();
+                int maxStackSize = item.getMaxStackSize();
 
                 // 循环切分：只要还有没给完的，就继续给
                 while (totalAmountToGive > 0) {

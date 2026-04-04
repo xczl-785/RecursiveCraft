@@ -67,7 +67,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
         // 1. 基础检查
         ItemStack output = recipe.getResultItem(player.level().registryAccess());
         if (output.isEmpty()) {
-            return new SimpleError(IRecipeTransferError.Type.USER_FACING, Component.literal("配方无效").withStyle(ChatFormatting.RED));
+            return new SimpleError(IRecipeTransferError.Type.USER_FACING, Component.translatable("recursivecraft.msg.invalid_recipe").withStyle(ChatFormatting.RED));
         }
 
         boolean isCtrlDown = Screen.hasControlDown();
@@ -95,7 +95,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
             // 2.1 尺寸检查 (仅针对 2x2 的背包)
             if (container instanceof InventoryMenu) {
                 if (!recipe.canCraftInDimensions(2, 2)) {
-                    Component warningText = Component.literal("配方过大，请按 Ctrl + 点击 进行递归合成")
+                    Component warningText = Component.translatable("recursivecraft.msg.recipe_too_large")
                             .withStyle(ChatFormatting.RED);
                     return transferHelper.createUserErrorWithTooltip(warningText);
                 }
@@ -106,7 +106,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
 
             if (!missingSlots.isEmpty()) {
                 return transferHelper.createUserErrorForMissingSlots(
-                        Component.literal("缺少材料").withStyle(ChatFormatting.RED),
+                        Component.translatable("recursivecraft.msg.missing_ingredients").withStyle(ChatFormatting.RED),
                         missingSlots
                 );
             }

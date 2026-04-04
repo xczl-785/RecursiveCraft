@@ -1,5 +1,25 @@
 {
   "itemGroup.recursivecraft.recursive_craft_tab": "递归合成",
   "block.recursivecraft.recursive_crafter": "递归合成器",
-  "item.recursivecraft.handheld_crafter": "递归合成器手持版"
+  "item.recursivecraft.handheld_crafter": "递归合成器手持版",
+
+  "recursivecraft.gui.execute": "执行合成",
+  "recursivecraft.gui.output": "产物:",
+  "recursivecraft.gui.amount": "数量:",
+  "recursivecraft.gui.analyzing": "正在分析配方...",
+  "recursivecraft.gui.favorited": "★ 已收藏",
+  "recursivecraft.gui.right_click_favorite": "右键点击收藏",
+
+  "recursivecraft.msg.crafting_init": "§c合成系统正在初始化，请稍候...",
+  "recursivecraft.msg.invalid_request": "§c合成请求无效。",
+  "recursivecraft.msg.amount_over_limit": "§c合成数量超过上限 (%s)。",
+  "recursivecraft.msg.craft_success": "§a合成成功: %sx %s",
+  "recursivecraft.msg.craft_fail": "§c合成失败: %s",
+  "recursivecraft.msg.no_recipe": "§c无法合成：未找到有效配方。",
+  "recursivecraft.msg.analyzing": "§e[分析合成失败原因...]",
+  "recursivecraft.msg.cycle_detected": "§c合成结构异常 (可能是配方死循环)。",
+  "recursivecraft.msg.missing_materials": "§c缺少材料: %s",
+  "recursivecraft.msg.invalid_recipe": "配方无效",
+  "recursivecraft.msg.recipe_too_large": "配方过大，请按 Ctrl + 点击 进行递归合成",
+  "recursivecraft.msg.missing_ingredients": "缺少材料"
 }

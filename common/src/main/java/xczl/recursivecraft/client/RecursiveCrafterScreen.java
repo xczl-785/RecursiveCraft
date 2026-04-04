@@ -85,7 +85,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.amountBox.setValue("1");
         this.addRenderableWidget(this.amountBox);
 
-        this.executeButton = this.addRenderableWidget(Button.builder(Component.literal("执行合成"), (btn) -> {
+        this.executeButton = this.addRenderableWidget(Button.builder(Component.translatable("recursivecraft.gui.execute"), (btn) -> {
             this.onExecutePressed();
         }).bounds(rightPanelX, executeButtonY, 60, 20).build());
 
@@ -158,11 +158,11 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         super.renderLabels(graphics, mouseX, mouseY);
         int rightPanelX_relative = 180;
-        graphics.drawString(this.font, Component.literal("产物:"), rightPanelX_relative, 10, 0x404040, false);
-        graphics.drawString(this.font, Component.literal("数量:"), rightPanelX_relative, 32, 0x404040, false);
+        graphics.drawString(this.font, Component.translatable("recursivecraft.gui.output"), rightPanelX_relative, 10, 0x404040, false);
+        graphics.drawString(this.font, Component.translatable("recursivecraft.gui.amount"), rightPanelX_relative, 32, 0x404040, false);
 
         if (!CraftingPlanner.getInstance().isReady()) {
-            graphics.drawString(this.font, Component.literal("正在分析配方..."), 8, 50, 0xFF0000, false);
+            graphics.drawString(this.font, Component.translatable("recursivecraft.gui.analyzing"), 8, 50, 0xFF0000, false);
         } else {
             String pageText = String.format("%d / %d", itemList.getCurrentPage() + 1, itemList.getMaxPage() + 1);
             int gridTop_relative = 25;
@@ -196,9 +196,9 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
                 List<Component> tooltip = Screen.getTooltipFromItem(this.minecraft, stack);
 
                 if (ClientFavorites.isFavorite(item)) {
-                    tooltip.add(Component.literal("★ 已收藏").withStyle(ChatFormatting.YELLOW));
+                    tooltip.add(Component.translatable("recursivecraft.gui.favorited").withStyle(ChatFormatting.YELLOW));
                 } else {
-                    tooltip.add(Component.literal("右键点击收藏").withStyle(ChatFormatting.DARK_GRAY));
+                    tooltip.add(Component.translatable("recursivecraft.gui.right_click_favorite").withStyle(ChatFormatting.DARK_GRAY));
                 }
 
                 graphics.renderTooltip(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);

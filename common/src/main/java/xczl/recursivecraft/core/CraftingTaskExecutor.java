@@ -11,6 +11,7 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.utils.InventoryUtils;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -39,7 +40,7 @@ public class CraftingTaskExecutor {
         }
 
         if (!CraftingPlanner.getInstance().isReady()) {
-            msgSender.accept(Component.literal("§c合成系统正在初始化，请稍候..."));
+            msgSender.accept(Component.translatable("recursivecraft.msg.crafting_init"));
             return false;
         }
 
@@ -74,11 +75,11 @@ public class CraftingTaskExecutor {
 
     private static boolean isValidRequest(Item targetItem, int amount, Consumer<Component> msgSender) {
         if (targetItem == Items.AIR || amount <= 0) {
-            msgSender.accept(Component.literal("§c合成请求无效。"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.invalid_request"));
             return false;
         }
         if (amount > ModConfig.maxCraftAmount) {
-            msgSender.accept(Component.literal("§c合成数量超过上限 (" + ModConfig.maxCraftAmount + ")。"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.amount_over_limit", ModConfig.maxCraftAmount));
             return false;
         }
         return true;
@@ -142,10 +143,10 @@ public class CraftingTaskExecutor {
                                               CraftingTransaction transaction, Consumer<Component> msgSender) {
         try {
             transaction.execute(player);
-            msgSender.accept(Component.literal("§a合成成功: " + amount + "x " + targetItem.getDescription().getString()));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription().getString()));
             return true;
         } catch (Exception e) {
-            msgSender.accept(Component.literal("§c合成失败: " + e.getMessage()));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", e.getMessage()));
             return false;
         }
     }
@@ -157,11 +158,11 @@ public class CraftingTaskExecutor {
      */
     private static void reportMissingMaterials(ServerPlayer player, int amount, CraftingRecipe recipe, Consumer<Component> msgSender) {
         if (recipe == null) {
-            msgSender.accept(Component.literal("§c无法合成：未找到有效配方。"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.no_recipe"));
             return;
         }
 
-        msgSender.accept(Component.literal("§e[分析合成失败原因...]"));
+        msgSender.accept(Component.translatable("recursivecraft.msg.analyzing"));
 
         Map<Item, Integer> virtualInv = snapshotInventory(player);
         List<Ingredient> allIngredients = expandIngredients(player, recipe, amount);
@@ -169,25 +170,19 @@ public class CraftingTaskExecutor {
 
         // 4. 输出报告
         if (missingCounts.isEmpty()) {
-            msgSender.accept(Component.literal("§c合成结构异常 (可能是配方死循环)。"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.cycle_detected"));
         } else {
-            StringBuilder sb = new StringBuilder("§c缺少材料: ");
+            StringBuilder sb = new StringBuilder();
             missingCounts.forEach((name, count) -> {
-                sb.append(count).append("x ").append(name).append(", ");
+                if (!sb.isEmpty()) sb.append(", ");
+                sb.append(count).append("x ").append(name);
             });
-            msgSender.accept(Component.literal(sb.substring(0, sb.length() - 2)));
+            msgSender.accept(Component.translatable("recursivecraft.msg.missing_materials", sb.toString()));
         }
     }
 
     private static Map<Item, Integer> snapshotInventory(ServerPlayer player) {
-        Map<Item, Integer> virtualInv = new HashMap<>();
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack s = player.getInventory().getItem(i);
-            if (!s.isEmpty()) {
-                virtualInv.put(s.getItem(), virtualInv.getOrDefault(s.getItem(), 0) + s.getCount());
-            }
-        }
-        return virtualInv;
+        return InventoryUtils.snapshot(player.getInventory());
     }
 
     private static List<Ingredient> expandIngredients(ServerPlayer player, CraftingRecipe recipe, int amount) {
