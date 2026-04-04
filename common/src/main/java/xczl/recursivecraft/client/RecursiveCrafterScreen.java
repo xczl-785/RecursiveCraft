@@ -7,7 +7,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -19,11 +18,8 @@ import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.menu.RecursiveCrafterMenu;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 import xczl.recursivecraft.networking.PacketHandler;
-import xczl.recursivecraft.utils.PinyinUtils;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCrafterMenu> {
 
@@ -37,16 +33,11 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
 
     private EditBox searchBox;
     private EditBox amountBox;
-    private List<Item> allCraftableItems = new ArrayList<>();
-    private List<Item> filteredCraftableItems = new ArrayList<>();
-    private int currentPage = 0;
-    private int maxPage = 0;
     private Button prevButton, nextButton;
     private Button executeButton;
     private Item selectedItem = Items.AIR;
 
-    // [修复] 初始化为 null，确保第一次打开界面时必然触发刷新
-    private String lastSearchQuery = null;
+    private final CraftableItemList itemList = new CraftableItemList();
 
     public RecursiveCrafterScreen(RecursiveCrafterMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -71,22 +62,22 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.inventoryLabelX = rightPanelX - 75;
 
         // 初始化数据
-        if (CraftingPlanner.getInstance().isReady()) {
-            allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getResult().getPathMemo().keySet());
-            sortItems(allCraftableItems);
-        }
+        itemList.tryLoadFromPlanner();
 
         this.searchBox = new EditBox(this.font, this.leftPos + 9, this.topPos + 7, GRID_COLS * GRID_SLOT_SIZE, 12, Component.literal("Search"));
-        this.searchBox.setResponder(this::onSearchUpdate);
+        this.searchBox.setResponder(query -> {
+            itemList.search(query);
+            updatePageButtons();
+        });
         this.addRenderableWidget(this.searchBox);
 
         this.prevButton = this.addRenderableWidget(Button.builder(Component.literal("<"), (btn) -> {
-            this.currentPage = Math.max(0, this.currentPage - 1);
+            itemList.prevPage();
             updatePageButtons();
         }).bounds(this.leftPos + 8, pageButtonY, 16, 16).build());
 
         this.nextButton = this.addRenderableWidget(Button.builder(Component.literal(">"), (btn) -> {
-            this.currentPage = Math.min(this.maxPage, this.currentPage + 1);
+            itemList.nextPage();
             updatePageButtons();
         }).bounds(this.leftPos + 26, pageButtonY, 16, 16).build());
 
@@ -98,8 +89,9 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             this.onExecutePressed();
         }).bounds(rightPanelX, executeButtonY, 60, 20).build());
 
-        // 触发第一次搜索，因为 lastSearchQuery 为 null，这里一定会执行
-        onSearchUpdate(this.searchBox.getValue());
+        // 触发第一次搜索
+        itemList.search(this.searchBox.getValue());
+        updatePageButtons();
     }
 
     @Override
@@ -107,7 +99,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         if (this.searchBox.keyPressed(keyCode, scanCode, modifiers) || this.amountBox.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
-        // 屏蔽 E 键关闭界面
         if ((this.searchBox.isFocused() || this.amountBox.isFocused())
                 && this.minecraft.options.keyInventory.matches(keyCode, scanCode)) {
             return true;
@@ -115,53 +106,9 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private void sortItems(List<Item> list) {
-        list.sort((item1, item2) -> {
-            boolean fav1 = ClientFavorites.isFavorite(item1);
-            boolean fav2 = ClientFavorites.isFavorite(item2);
-
-            if (fav1 && !fav2) return -1;
-            if (!fav1 && fav2) return 1;
-
-            String id1 = BuiltInRegistries.ITEM.getKey(item1).toString();
-            String id2 = BuiltInRegistries.ITEM.getKey(item2).toString();
-            return id1.compareTo(id2);
-        });
-    }
-
-    private void onSearchUpdate(String query) {
-        String lowerQuery = query.toLowerCase().trim();
-
-        // [关键修复] 防抖逻辑：只有当 query 真的改变时，才重置页码
-        // 初始化时 lastSearchQuery 为 null，"".equals(null) 为 false，所以第一次会通过
-        if (lowerQuery.equals(this.lastSearchQuery)) {
-            return;
-        }
-        this.lastSearchQuery = lowerQuery;
-
-        List<Item> filtered = this.allCraftableItems.stream()
-                .filter(item -> {
-                    String displayName = item.getDescription().getString();
-                    String registryId = BuiltInRegistries.ITEM.getKey(item).toString();
-
-                    if (PinyinUtils.matches(displayName, query)) return true;
-                    if (registryId.contains(lowerQuery)) return true;
-
-                    return false;
-                })
-                .collect(Collectors.toList());
-
-        sortItems(filtered);
-
-        this.filteredCraftableItems = filtered;
-        this.currentPage = 0; // 只有真正搜索时才重置页码
-        this.maxPage = Math.max(0, (this.filteredCraftableItems.size() - 1) / (GRID_COLS * GRID_ROWS));
-        updatePageButtons();
-    }
-
     private void updatePageButtons() {
-        this.prevButton.active = this.currentPage > 0;
-        this.nextButton.active = this.currentPage < this.maxPage;
+        this.prevButton.active = itemList.hasPrevPage();
+        this.nextButton.active = itemList.hasNextPage();
     }
 
     private void onExecutePressed() {
@@ -187,13 +134,11 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTicks);
 
-        // [新增] 自动刷新逻辑：如果打开界面时配方还没算好，这里会检测到并自动加载
-        if (this.allCraftableItems.isEmpty() && CraftingPlanner.getInstance().isReady()) {
-            this.allCraftableItems = new ArrayList<>(CraftingPlanner.getInstance().getResult().getPathMemo().keySet());
-            sortItems(this.allCraftableItems);
-            // 强制刷新一次列表
-            this.lastSearchQuery = null;
-            onSearchUpdate(this.searchBox.getValue());
+        // 自动刷新：如果打开界面时配方还没算好，检测到就自动加载
+        if (itemList.tryLoadFromPlanner()) {
+            itemList.forceRefresh();
+            itemList.search(this.searchBox.getValue());
+            updatePageButtons();
         }
 
         this.searchBox.render(graphics, mouseX, mouseY, partialTicks);
@@ -219,7 +164,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         if (!CraftingPlanner.getInstance().isReady()) {
             graphics.drawString(this.font, Component.literal("正在分析配方..."), 8, 50, 0xFF0000, false);
         } else {
-            String pageText = String.format("%d / %d", this.currentPage + 1, this.maxPage + 1);
+            String pageText = String.format("%d / %d", itemList.getCurrentPage() + 1, itemList.getMaxPage() + 1);
             int gridTop_relative = 25;
             int pageButtonY_relative = gridTop_relative + (GRID_ROWS * GRID_SLOT_SIZE) + 4;
             int pageTextY_relative = pageButtonY_relative + 16 + 4;
@@ -228,13 +173,10 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     }
 
     private void renderCraftableItems(GuiGraphics graphics, int mouseX, int mouseY) {
-        int startIndex = this.currentPage * (GRID_COLS * GRID_ROWS);
+        List<Item> pageItems = itemList.getCurrentPageItems();
 
-        for (int i = 0; i < (GRID_COLS * GRID_ROWS); i++) {
-            int itemIndex = startIndex + i;
-            if (itemIndex >= this.filteredCraftableItems.size()) break;
-
-            Item item = this.filteredCraftableItems.get(itemIndex);
+        for (int i = 0; i < pageItems.size(); i++) {
+            Item item = pageItems.get(i);
             ItemStack stack = new ItemStack(item);
 
             int x = this.gridLeft + (i % GRID_COLS) * GRID_SLOT_SIZE;
@@ -273,20 +215,17 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     }
 
     private boolean checkGridClick(double mouseX, double mouseY, int button) {
-        int startIndex = this.currentPage * (GRID_COLS * GRID_ROWS);
-        for (int i = 0; i < (GRID_COLS * GRID_ROWS); i++) {
-            int itemIndex = startIndex + i;
-            if (itemIndex >= this.filteredCraftableItems.size()) break;
+        List<Item> pageItems = itemList.getCurrentPageItems();
 
+        for (int i = 0; i < pageItems.size(); i++) {
             int x = this.gridLeft + (i % GRID_COLS) * GRID_SLOT_SIZE;
             int y = this.gridTop + (i / GRID_COLS) * GRID_SLOT_SIZE;
 
             if (mouseX >= x && mouseX < (x + 16) && mouseY >= y && mouseY < (y + 16)) {
-                Item clickedItem = this.filteredCraftableItems.get(itemIndex);
+                Item clickedItem = pageItems.get(i);
 
                 if (button == 1) { // 右键收藏
                     ClientFavorites.toggleFavorite(clickedItem);
-                    // 注意：这里不调用 onSearchUpdate，避免页面跳动
                     return true;
                 }
 

@@ -9,6 +9,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.data.CraftingTransaction;
 
 import java.util.*;
@@ -71,16 +72,13 @@ public class CraftingTaskExecutor {
         return executeTransaction(player, targetItem, amount, transaction, msgSender);
     }
 
-    /** 单次合成数量上限（一背包 = 36格 × 64 = 2304） */
-    private static final int MAX_CRAFT_AMOUNT = 2304;
-
     private static boolean isValidRequest(Item targetItem, int amount, Consumer<Component> msgSender) {
         if (targetItem == Items.AIR || amount <= 0) {
             msgSender.accept(Component.literal("§c合成请求无效。"));
             return false;
         }
-        if (amount > MAX_CRAFT_AMOUNT) {
-            msgSender.accept(Component.literal("§c合成数量超过上限 (" + MAX_CRAFT_AMOUNT + ")。"));
+        if (amount > ModConfig.maxCraftAmount) {
+            msgSender.accept(Component.literal("§c合成数量超过上限 (" + ModConfig.maxCraftAmount + ")。"));
             return false;
         }
         return true;

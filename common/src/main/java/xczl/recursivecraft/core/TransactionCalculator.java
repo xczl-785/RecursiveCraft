@@ -7,7 +7,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import xczl.recursivecraft.RecursiveCraft;
-import xczl.recursivecraft.data.CostMap;
 import xczl.recursivecraft.data.CraftingTransaction;
 
 import java.util.*;
@@ -28,20 +27,6 @@ public class TransactionCalculator {
         }
     }
 
-    private interface RecipeCandidateStrategy {
-        List<CraftingRecipe> collectCandidates(Item target, CraftingRecipe forcedRecipe, String indent);
-
-        void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest, Map<Item, Integer> virtualInventory);
-    }
-
-    private interface IngredientOptionStrategy {
-        List<Item> sortOptions(ItemStack[] options, Map<Item, Integer> virtualInventory);
-    }
-
-    private interface SatisfactionPolicy {
-        boolean isSatisfied(CraftingTransaction tx, Map<Item, Integer> startInv, Map<Item, Integer> endInv);
-    }
-
     private static class CalcContext {
         final Map<Item, Integer> virtualInventory;
         final Set<Item> recursionStack;
@@ -54,9 +39,6 @@ public class TransactionCalculator {
 
     private final CraftingPlanner.PlanningResult planningResult;
     private final Inventory playerInventory;
-    private final RecipeCandidateStrategy recipeCandidateStrategy;
-    private final IngredientOptionStrategy ingredientOptionStrategy;
-    private final SatisfactionPolicy satisfactionPolicy;
 
     private final Set<Item> uncraftableCache = new HashSet<>();
     private static final int MAX_DEPTH = 30;
@@ -64,9 +46,6 @@ public class TransactionCalculator {
     public TransactionCalculator(Inventory playerInventory) {
         this.playerInventory = playerInventory;
         this.planningResult = CraftingPlanner.getInstance().getResult();
-        this.recipeCandidateStrategy = new DefaultRecipeCandidateStrategy();
-        this.ingredientOptionStrategy = new DefaultIngredientOptionStrategy();
-        this.satisfactionPolicy = new NetDeltaSatisfactionPolicy();
     }
 
     /**
@@ -152,14 +131,14 @@ public class TransactionCalculator {
                                                        CalcContext context, int debugDepth,
                                                        CraftingRecipe forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
-        List<CraftingRecipe> candidates = recipeCandidateStrategy.collectCandidates(target, forcedRecipe, indent);
+        List<CraftingRecipe> candidates = collectCandidateRecipes(target, forcedRecipe, indent);
 
         if (candidates.isEmpty()) {
             return createNeedOnlyTransaction(target, amountToCraft);
         }
 
         CraftingRecipe theoreticalBest = planningResult.getPathMemo().get(target);
-        recipeCandidateStrategy.sortCandidates(candidates, theoreticalBest, context.virtualInventory);
+        sortCandidates(candidates, theoreticalBest, context.virtualInventory);
 
         CraftingTransaction bestFailure = tryRecipeCandidates(candidates, theoreticalBest, target, amountToCraft, context, debugDepth, forcedRecipe, indent);
         return bestFailure != null ? bestFailure : new CraftingTransaction();
@@ -219,7 +198,7 @@ public class TransactionCalculator {
             return calculateRecursive(options[0].getItem(), totalNeed, false, context, debugDepth, null);
         }
 
-        List<Item> sortedOptions = ingredientOptionStrategy.sortOptions(options, context.virtualInventory);
+        List<Item> sortedOptions = sortIngredientOptions(options, context.virtualInventory);
         CraftingTransaction bestFailure = tryIngredientOptions(totalNeed, context, debugDepth, sortedOptions);
 
         return bestFailure != null ? bestFailure : new CraftingTransaction();
@@ -256,8 +235,8 @@ public class TransactionCalculator {
     }
 
     private double getCost(Item item) {
-        CostMap map = planningResult.getCostMemo().get(item);
-        return map != null ? map.getTotalItemCost() : Double.MAX_VALUE;
+        Double cost = planningResult.getCostMemo().get(item);
+        return cost != null ? cost : Double.MAX_VALUE;
     }
 
     private boolean checkShallowRecipe(CraftingRecipe recipe, Map<Item, Integer> virtualInventory) {
@@ -351,7 +330,7 @@ public class TransactionCalculator {
             CalcContext snapshotContext = new CalcContext(snapshotInventory, context.recursionStack);
             CraftingTransaction trialTx = simulateRecipe(recipe, amountToCraft, snapshotContext, debugDepth);
 
-            if (satisfactionPolicy.isSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
+            if (isTransactionSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
                 if (forcedRecipe == null) {
                     RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
                 }
@@ -389,7 +368,7 @@ public class TransactionCalculator {
             CalcContext snapshotContext = new CalcContext(snapshotInventory, context.recursionStack);
             CraftingTransaction trialTx = calculateRecursive(itemOption, totalNeed, false, snapshotContext, debugDepth, null);
 
-            if (satisfactionPolicy.isSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
+            if (isTransactionSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
                 context.virtualInventory.putAll(snapshotInventory);
                 return trialTx;
             }
@@ -400,29 +379,4 @@ public class TransactionCalculator {
         return bestFailure;
     }
 
-    private class DefaultRecipeCandidateStrategy implements RecipeCandidateStrategy {
-        @Override
-        public List<CraftingRecipe> collectCandidates(Item target, CraftingRecipe forcedRecipe, String indent) {
-            return collectCandidateRecipes(target, forcedRecipe, indent);
-        }
-
-        @Override
-        public void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest, Map<Item, Integer> virtualInventory) {
-            TransactionCalculator.this.sortCandidates(candidates, theoreticalBest, virtualInventory);
-        }
-    }
-
-    private class DefaultIngredientOptionStrategy implements IngredientOptionStrategy {
-        @Override
-        public List<Item> sortOptions(ItemStack[] options, Map<Item, Integer> virtualInventory) {
-            return sortIngredientOptions(options, virtualInventory);
-        }
-    }
-
-    private class NetDeltaSatisfactionPolicy implements SatisfactionPolicy {
-        @Override
-        public boolean isSatisfied(CraftingTransaction tx, Map<Item, Integer> startInv, Map<Item, Integer> endInv) {
-            return isTransactionSatisfied(tx, startInv, endInv);
-        }
-    }
 }

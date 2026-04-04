@@ -8,7 +8,6 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.core.registries.BuiltInRegistries; // 使用原版注册表
 import xczl.recursivecraft.RecursiveCraft;
-import xczl.recursivecraft.data.CostMap;
 
 import java.util.*;
 
@@ -35,11 +34,11 @@ public class CraftingPlanner {
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         private final Map<Item, CraftingRecipe> pathMemo;
-        private final Map<Item, CostMap> costMemo;
+        private final Map<Item, Double> costMemo;
         private final Map<Item, List<CraftingRecipe>> recipeLookup;
 
         private PlanningResult(Map<Item, CraftingRecipe> pathMemo,
-                               Map<Item, CostMap> costMemo,
+                               Map<Item, Double> costMemo,
                                Map<Item, List<CraftingRecipe>> recipeLookup) {
             this.pathMemo = Collections.unmodifiableMap(pathMemo);
             this.costMemo = Collections.unmodifiableMap(costMemo);
@@ -50,7 +49,7 @@ public class CraftingPlanner {
         }
 
         public Map<Item, CraftingRecipe> getPathMemo() { return pathMemo; }
-        public Map<Item, CostMap> getCostMemo() { return costMemo; }
+        public Map<Item, Double> getCostMemo() { return costMemo; }
         public List<CraftingRecipe> getRecipesFor(Item item) {
             return recipeLookup.getOrDefault(item, Collections.emptyList());
         }
@@ -114,7 +113,7 @@ public class CraftingPlanner {
         runConvergenceLoop(100, itemsToRescue, minCostTable, pathMemo, recipeLookup);
 
         // 5. 生成最终结果并通过 volatile 写入一次性发布
-        Map<Item, CostMap> costMemo = new HashMap<>();
+        Map<Item, Double> costMemo = new HashMap<>();
         int craftableCount = finalizeCostMemo(allItems, minCostTable, pathMemo, costMemo);
 
         // volatile 写入：此前所有数据写入对读取线程可见
@@ -180,17 +179,13 @@ public class CraftingPlanner {
     }
 
     private static int finalizeCostMemo(Set<Item> allItems, Map<Item, Double> minCostTable,
-                                        Map<Item, CraftingRecipe> pathMemo, Map<Item, CostMap> costMemo) {
+                                        Map<Item, CraftingRecipe> pathMemo, Map<Item, Double> costMemo) {
         int craftableCount = 0;
         for (Item item : allItems) {
             double finalCost = minCostTable.getOrDefault(item, Double.MAX_VALUE);
-            if (finalCost >= Double.MAX_VALUE) {
-                costMemo.put(item, CostMap.INFINITE_COST);
-            } else {
-                costMemo.put(item, new CostMap(item, finalCost));
-                if (pathMemo.containsKey(item)) {
-                    craftableCount++;
-                }
+            costMemo.put(item, finalCost);
+            if (finalCost < Double.MAX_VALUE && pathMemo.containsKey(item)) {
+                craftableCount++;
             }
         }
         return craftableCount;
