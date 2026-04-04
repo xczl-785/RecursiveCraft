@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PPP",
+    "PCP",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:crafting_table"
+    },
+    "C": {
+      "item": "recursivecraft:recursive_crafter"
+    }
+  },
+  "result": {
+    "item": "recursivecraft:handheld_crafter"
+  }
+}

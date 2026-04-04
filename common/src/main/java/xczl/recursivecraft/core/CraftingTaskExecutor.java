@@ -19,14 +19,21 @@ import java.util.function.Consumer;
  * 统一管理 Command 和 Packet 的合成逻辑。
  */
 public class CraftingTaskExecutor {
+    private static class NetChanges {
+        final Map<Item, Integer> needs;
+        final Map<Item, Integer> provides;
+
+        private NetChanges(Map<Item, Integer> needs, Map<Item, Integer> provides) {
+            this.needs = needs;
+            this.provides = provides;
+        }
+    }
 
     /**
      * 尝试执行递归合成任务
      */
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, ResourceLocation forcedRecipeId, Consumer<Component> msgSender) {
-        // 1. 基础校验
-        if (targetItem == Items.AIR || amount <= 0) {
-            msgSender.accept(Component.literal("§c合成请求无效。"));
+        if (!isValidRequest(targetItem, amount, msgSender)) {
             return false;
         }
 
@@ -35,7 +42,44 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        // 2. 解析配方
+        CraftingRecipe usedRecipe = resolveRecipe(player, targetItem, forcedRecipeId);
+        CraftingTransaction transaction = calculateTransaction(player, targetItem, amount, forcedRecipeId, usedRecipe);
+
+        NetChanges netChanges = splitNetChanges(transaction);
+
+        // === [优化] 先进行逻辑校验，通过后再打印日志 ===
+        // 这样做是为了防止打印“废案”的日志误导玩家。如果失败，我们只看诊断结果。
+
+        // 5. [检查一] 死循环防御：净产出是否达标？
+        if (!hasEnoughTargetProvide(targetItem, amount, netChanges.provides)) {
+            // 失败：进入智能诊断 (此时不打印 Transaction Log)
+            reportMissingMaterials(player, amount, usedRecipe, msgSender);
+            return false;
+        }
+
+        // 6. [检查二] 基础材料是否充足？
+        if (!hasEnoughMaterials(player, netChanges.needs)) {
+            // 失败：进入智能诊断 (此时不打印 Transaction Log)
+            reportMissingMaterials(player, amount, usedRecipe, msgSender);
+            return false;
+        }
+
+        // === 只有成功时，才打印详细的事务日志 ===
+        printDebugLog(msgSender, netChanges.needs, netChanges.provides);
+
+        // 7. 执行合成
+        return executeTransaction(player, targetItem, amount, transaction, msgSender);
+    }
+
+    private static boolean isValidRequest(Item targetItem, int amount, Consumer<Component> msgSender) {
+        if (targetItem == Items.AIR || amount <= 0) {
+            msgSender.accept(Component.literal("§c合成请求无效。"));
+            return false;
+        }
+        return true;
+    }
+
+    private static CraftingRecipe resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
         CraftingRecipe usedRecipe = null;
         if (forcedRecipeId != null) {
             Optional<? extends Recipe<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
@@ -48,57 +92,49 @@ public class CraftingTaskExecutor {
         if (usedRecipe == null) {
             usedRecipe = CraftingPlanner.getInstance().getPathMemo().get(targetItem);
         }
+        return usedRecipe;
+    }
 
-        // 3. 计算事务
+    private static CraftingTransaction calculateTransaction(ServerPlayer player, Item targetItem, int amount,
+                                                            ResourceLocation forcedRecipeId, CraftingRecipe usedRecipe) {
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
         CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
 
         CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, recipeForCalc);
         transaction.addProvide(targetItem, amount);
+        return transaction;
+    }
 
-        // 4. 获取净变化 (Net Deltas)
-        Map<Item, Integer> netDeltas = transaction.getNetDeltas();
+    private static NetChanges splitNetChanges(CraftingTransaction transaction) {
         Map<Item, Integer> netNeeds = new HashMap<>();
         Map<Item, Integer> netProvides = new HashMap<>();
 
-        for (Map.Entry<Item, Integer> entry : netDeltas.entrySet()) {
+        for (Map.Entry<Item, Integer> entry : transaction.getNetDeltas().entrySet()) {
             if (entry.getValue() < 0) {
                 netNeeds.put(entry.getKey(), -entry.getValue());
             } else if (entry.getValue() > 0) {
                 netProvides.put(entry.getKey(), entry.getValue());
             }
         }
+        return new NetChanges(netNeeds, netProvides);
+    }
 
-        // === [优化] 先进行逻辑校验，通过后再打印日志 ===
-        // 这样做是为了防止打印“废案”的日志误导玩家。如果失败，我们只看诊断结果。
-
-        // 5. [检查一] 死循环防御：净产出是否达标？
+    private static boolean hasEnoughTargetProvide(Item targetItem, int amount, Map<Item, Integer> netProvides) {
         int actualProvide = netProvides.getOrDefault(targetItem, 0);
-        if (actualProvide < amount) {
-            // 失败：进入智能诊断 (此时不打印 Transaction Log)
-            reportMissingMaterials(player, amount, usedRecipe, msgSender);
-            return false;
-        }
+        return actualProvide >= amount;
+    }
 
-        // 6. [检查二] 基础材料是否充足？
-        boolean isMaterialsEnough = true;
+    private static boolean hasEnoughMaterials(ServerPlayer player, Map<Item, Integer> netNeeds) {
         for (Map.Entry<Item, Integer> entry : netNeeds.entrySet()) {
             if (player.getInventory().countItem(entry.getKey()) < entry.getValue()) {
-                isMaterialsEnough = false;
-                break;
+                return false;
             }
         }
+        return true;
+    }
 
-        if (!isMaterialsEnough) {
-            // 失败：进入智能诊断 (此时不打印 Transaction Log)
-            reportMissingMaterials(player, amount, usedRecipe, msgSender);
-            return false;
-        }
-
-        // === 只有成功时，才打印详细的事务日志 ===
-        printDebugLog(msgSender, netNeeds, netProvides);
-
-        // 7. 执行合成
+    private static boolean executeTransaction(ServerPlayer player, Item targetItem, int amount,
+                                              CraftingTransaction transaction, Consumer<Component> msgSender) {
         try {
             transaction.execute(player);
             msgSender.accept(Component.literal("§a合成成功: " + amount + "x " + targetItem.getDescription().getString()));
@@ -122,7 +158,23 @@ public class CraftingTaskExecutor {
 
         msgSender.accept(Component.literal("§e[分析合成失败原因...]"));
 
-        // 1. 模拟背包快照
+        Map<Item, Integer> virtualInv = snapshotInventory(player);
+        List<Ingredient> allIngredients = expandIngredients(player, recipe, amount);
+        Map<String, Integer> missingCounts = calculateMissingCounts(virtualInv, allIngredients);
+
+        // 4. 输出报告
+        if (missingCounts.isEmpty()) {
+            msgSender.accept(Component.literal("§c合成结构异常 (可能是配方死循环)。"));
+        } else {
+            StringBuilder sb = new StringBuilder("§c缺少材料: ");
+            missingCounts.forEach((name, count) -> {
+                sb.append(count).append("x ").append(name).append(", ");
+            });
+            msgSender.accept(Component.literal(sb.substring(0, sb.length() - 2)));
+        }
+    }
+
+    private static Map<Item, Integer> snapshotInventory(ServerPlayer player) {
         Map<Item, Integer> virtualInv = new HashMap<>();
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack s = player.getInventory().getItem(i);
@@ -130,8 +182,10 @@ public class CraftingTaskExecutor {
                 virtualInv.put(s.getItem(), virtualInv.getOrDefault(s.getItem(), 0) + s.getCount());
             }
         }
+        return virtualInv;
+    }
 
-        // 2. 展开所有需求
+    private static List<Ingredient> expandIngredients(ServerPlayer player, CraftingRecipe recipe, int amount) {
         int outputCount = recipe.getResultItem(player.level().registryAccess()).getCount();
         if (outputCount < 1) outputCount = 1;
         int crafts = (int) Math.ceil((double) amount / outputCount);
@@ -144,42 +198,31 @@ public class CraftingTaskExecutor {
                 }
             }
         }
+        return allIngredients;
+    }
 
-        // 3. 贪婪匹配
+    private static Map<String, Integer> calculateMissingCounts(Map<Item, Integer> virtualInv, List<Ingredient> allIngredients) {
         Map<String, Integer> missingCounts = new HashMap<>();
-
         for (Ingredient ing : allIngredients) {
-            boolean satisfied = false;
-            ItemStack[] options = ing.getItems();
-
-            // 尝试在背包里找现货
-            for (ItemStack option : options) {
-                Item item = option.getItem();
-                int has = virtualInv.getOrDefault(item, 0);
-                if (has > 0) {
-                    virtualInv.put(item, has - 1);
-                    satisfied = true;
-                    break;
-                }
-            }
-
-            if (!satisfied) {
-                // 取个名字 (通常取第一个匹配项)
+            if (!consumeOneMatchingItem(virtualInv, ing)) {
+                ItemStack[] options = ing.getItems();
                 String name = (options.length > 0) ? options[0].getHoverName().getString() : "未知材料";
                 missingCounts.put(name, missingCounts.getOrDefault(name, 0) + 1);
             }
         }
+        return missingCounts;
+    }
 
-        // 4. 输出报告
-        if (missingCounts.isEmpty()) {
-            msgSender.accept(Component.literal("§c合成结构异常 (可能是配方死循环)。"));
-        } else {
-            StringBuilder sb = new StringBuilder("§c缺少材料: ");
-            missingCounts.forEach((name, count) -> {
-                sb.append(count).append("x ").append(name).append(", ");
-            });
-            msgSender.accept(Component.literal(sb.substring(0, sb.length() - 2)));
+    private static boolean consumeOneMatchingItem(Map<Item, Integer> virtualInv, Ingredient ing) {
+        for (ItemStack option : ing.getItems()) {
+            Item item = option.getItem();
+            int has = virtualInv.getOrDefault(item, 0);
+            if (has > 0) {
+                virtualInv.put(item, has - 1);
+                return true;
+            }
         }
+        return false;
     }
 
     private static void printDebugLog(Consumer<Component> msgSender, Map<Item, Integer> netNeeds, Map<Item, Integer> netProvides) {

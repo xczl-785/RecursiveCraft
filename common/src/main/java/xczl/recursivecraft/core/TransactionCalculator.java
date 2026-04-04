@@ -28,9 +28,36 @@ public class TransactionCalculator {
         }
     }
 
+    private interface RecipeCandidateStrategy {
+        List<CraftingRecipe> collectCandidates(Item target, CraftingRecipe forcedRecipe, String indent);
+
+        void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest, Map<Item, Integer> virtualInventory);
+    }
+
+    private interface IngredientOptionStrategy {
+        List<Item> sortOptions(ItemStack[] options, Map<Item, Integer> virtualInventory);
+    }
+
+    private interface SatisfactionPolicy {
+        boolean isSatisfied(CraftingTransaction tx, Map<Item, Integer> startInv, Map<Item, Integer> endInv);
+    }
+
+    private static class CalcContext {
+        final Map<Item, Integer> virtualInventory;
+        final Set<Item> recursionStack;
+
+        private CalcContext(Map<Item, Integer> virtualInventory, Set<Item> recursionStack) {
+            this.virtualInventory = virtualInventory;
+            this.recursionStack = recursionStack;
+        }
+    }
+
     private final Map<Item, CraftingRecipe> pathMemo;
     private final Map<Item, CostMap> costMemo;
     private final Inventory playerInventory;
+    private final RecipeCandidateStrategy recipeCandidateStrategy;
+    private final IngredientOptionStrategy ingredientOptionStrategy;
+    private final SatisfactionPolicy satisfactionPolicy;
 
     private final Set<Item> uncraftableCache = new HashSet<>();
     private static final int MAX_DEPTH = 30;
@@ -39,6 +66,9 @@ public class TransactionCalculator {
         this.playerInventory = playerInventory;
         this.pathMemo = CraftingPlanner.getInstance().getPathMemo();
         this.costMemo = CraftingPlanner.getInstance().getCostMemo();
+        this.recipeCandidateStrategy = new DefaultRecipeCandidateStrategy();
+        this.ingredientOptionStrategy = new DefaultIngredientOptionStrategy();
+        this.satisfactionPolicy = new NetDeltaSatisfactionPolicy();
     }
 
     /**
@@ -53,26 +83,11 @@ public class TransactionCalculator {
      * @param forcedRecipe 如果不为 null，则第一步合成强制使用该配方
      */
     public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, CraftingRecipe forcedRecipe) {
-        // 1. 初始化虚拟库存
-        Map<Item, Integer> virtualInventory = new HashMap<>();
-        for (int i = 0; i < playerInventory.getContainerSize(); i++) {
-            ItemStack stack = playerInventory.getItem(i);
-            if (!stack.isEmpty()) {
-                virtualInventory.put(stack.getItem(), virtualInventory.getOrDefault(stack.getItem(), 0) + stack.getCount());
-            }
-        }
-
-        RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
-        if (forcedRecipe != null) {
-            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.getId());
-        } else {
-            RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
-        }
-
-        Set<Item> recursionStack = new HashSet<>();
+        CalcContext context = new CalcContext(snapshotPlayerInventory(), new HashSet<>());
+        logCalculationStart(target, amount, forcedRecipe);
         this.uncraftableCache.clear();
 
-        CraftingTransaction result = calculateRecursive(target, amount, isFinalTarget, virtualInventory, 1, recursionStack, forcedRecipe);
+        CraftingTransaction result = calculateRecursive(target, amount, isFinalTarget, context, 1, forcedRecipe);
 
         RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
         return result;
@@ -83,8 +98,7 @@ public class TransactionCalculator {
     // ======================================================================
 
     private CraftingTransaction calculateRecursive(Item target, int amount, boolean isFinalTarget,
-                                                   Map<Item, Integer> virtualInventory, int debugDepth,
-                                                   Set<Item> recursionStack, CraftingRecipe forcedRecipe) {
+                                                   CalcContext context, int debugDepth, CraftingRecipe forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
         CraftingTransaction currentTransaction = new CraftingTransaction();
 
@@ -94,7 +108,7 @@ public class TransactionCalculator {
             currentTransaction.addNeed(target, amount);
             return currentTransaction;
         }
-        if (recursionStack.contains(target)) {
+        if (context.recursionStack.contains(target)) {
             RecursiveCraft.LOGGER.warn("{}!! Cycle Detected for {} !!", indent, target.getDescription().getString());
             currentTransaction.addNeed(target, amount);
             return currentTransaction;
@@ -104,19 +118,11 @@ public class TransactionCalculator {
             return currentTransaction;
         }
 
-        recursionStack.add(target);
+        context.recursionStack.add(target);
         try {
             // 2. 优先消耗库存
             // 即使指定了配方，依然优先消耗现有成品（除非逻辑有变，目前保持原样）
-            int amountInInventory = 0;
-            if (!isFinalTarget) {
-                amountInInventory = virtualInventory.getOrDefault(target, 0);
-                if (amountInInventory > 0) {
-                    int amountToConsume = Math.min(amount, amountInInventory);
-                    currentTransaction.addNeed(target, amountToConsume);
-                    virtualInventory.put(target, amountInInventory - amountToConsume);
-                }
-            }
+            int amountInInventory = consumeFromVirtualInventory(target, amount, isFinalTarget, context.virtualInventory, currentTransaction);
 
             // 3. 计算仍需合成
             int amountToCraft = amount - amountInInventory;
@@ -125,7 +131,7 @@ public class TransactionCalculator {
             }
 
             // 4. 委托决策层
-            CraftingTransaction craftTx = findAndApplyBestRecipe(target, amountToCraft, virtualInventory, debugDepth, recursionStack, forcedRecipe);
+            CraftingTransaction craftTx = findAndApplyBestRecipe(target, amountToCraft, context, debugDepth, forcedRecipe);
 
             // 5. 判定失败缓存
             if (shouldCacheAsFailure(target, craftTx, amountToCraft)) {
@@ -136,7 +142,7 @@ public class TransactionCalculator {
             return currentTransaction;
 
         } finally {
-            recursionStack.remove(target);
+            context.recursionStack.remove(target);
         }
     }
 
@@ -145,67 +151,19 @@ public class TransactionCalculator {
     // ======================================================================
 
     private CraftingTransaction findAndApplyBestRecipe(Item target, int amountToCraft,
-                                                       Map<Item, Integer> virtualInventory, int debugDepth,
-                                                       Set<Item> recursionStack, CraftingRecipe forcedRecipe) {
+                                                       CalcContext context, int debugDepth,
+                                                       CraftingRecipe forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
-        List<CraftingRecipe> candidates;
-
-        // === [核心修改] 强制配方逻辑 ===
-        if (forcedRecipe != null) {
-            // 强制模式：只尝试这一个配方
-            candidates = Collections.singletonList(forcedRecipe);
-            RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.getId());
-        } else {
-            // 自动模式：从规划器获取候选列表
-            candidates = new ArrayList<>(CraftingPlanner.getInstance().getRecipesFor(target));
-        }
+        List<CraftingRecipe> candidates = recipeCandidateStrategy.collectCandidates(target, forcedRecipe, indent);
 
         if (candidates.isEmpty()) {
-            // 这是一个基础物品（无配方），或者确实缺配方
-            CraftingTransaction tx = new CraftingTransaction();
-            tx.addNeed(target, amountToCraft);
-            return tx;
+            return createNeedOnlyTransaction(target, amountToCraft);
         }
 
-        // 排序优化 (仅当有多个候选时有意义)
         CraftingRecipe theoreticalBest = pathMemo.get(target);
-        if (candidates.size() > 1) {
-            candidates.sort((r1, r2) -> {
-                boolean s1 = checkShallowRecipe(r1, virtualInventory);
-                boolean s2 = checkShallowRecipe(r2, virtualInventory);
-                if (s1 && !s2) return -1;
-                if (!s1 && s2) return 1;
-                if (r1 == theoreticalBest) return -1;
-                if (r2 == theoreticalBest) return 1;
-                return 0;
-            });
-        }
+        recipeCandidateStrategy.sortCandidates(candidates, theoreticalBest, context.virtualInventory);
 
-        CraftingTransaction bestFailure = null;
-
-        for (CraftingRecipe recipe : candidates) {
-            // [快照]
-            Map<Item, Integer> snapshotInventory = new HashMap<>(virtualInventory);
-
-            // [模拟]
-            CraftingTransaction trialTx = simulateRecipe(recipe, amountToCraft, snapshotInventory, debugDepth, recursionStack);
-
-            // [判定] 检查需求是否被库存满足
-            if (isTransactionSatisfied(trialTx, virtualInventory, snapshotInventory)) {
-                // >>> 成功 <<<
-                if (forcedRecipe == null) {
-                    RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
-                }
-                virtualInventory.putAll(snapshotInventory); // Commit
-                return trialTx;
-            } else {
-                // >>> 失败 <<<
-                if (bestFailure == null || recipe == theoreticalBest) {
-                    bestFailure = trialTx;
-                }
-            }
-        }
-
+        CraftingTransaction bestFailure = tryRecipeCandidates(candidates, theoreticalBest, target, amountToCraft, context, debugDepth, forcedRecipe, indent);
         return bestFailure != null ? bestFailure : new CraftingTransaction();
     }
 
@@ -214,8 +172,7 @@ public class TransactionCalculator {
     // ======================================================================
 
     private CraftingTransaction simulateRecipe(CraftingRecipe recipe, int amountToCraft,
-                                               Map<Item, Integer> virtualInventory, int debugDepth,
-                                               Set<Item> recursionStack) {
+                                               CalcContext context, int debugDepth) {
         CraftingTransaction tx = new CraftingTransaction();
 
         int outputCount = recipe.getResultItem(null).getCount();
@@ -235,7 +192,7 @@ public class TransactionCalculator {
         for (IngredientNeed need : needsList) {
             int totalNeed = need.amount * recipeRuns;
             // 解析子原料
-            CraftingTransaction subTx = resolveIngredient(need.ingredient, totalNeed, virtualInventory, debugDepth + 1, recursionStack);
+            CraftingTransaction subTx = resolveIngredient(need.ingredient, totalNeed, context, debugDepth + 1);
             tx.merge(subTx);
         }
 
@@ -244,7 +201,7 @@ public class TransactionCalculator {
         if (extra > 0) {
             Item outputItem = recipe.getResultItem(null).getItem();
             tx.addProvide(outputItem, extra);
-            virtualInventory.put(outputItem, virtualInventory.getOrDefault(outputItem, 0) + extra);
+            context.virtualInventory.put(outputItem, context.virtualInventory.getOrDefault(outputItem, 0) + extra);
         }
 
         return tx;
@@ -255,47 +212,17 @@ public class TransactionCalculator {
     // ======================================================================
 
     private CraftingTransaction resolveIngredient(Ingredient ingredient, int totalNeed,
-                                                  Map<Item, Integer> virtualInventory, int debugDepth,
-                                                  Set<Item> recursionStack) {
+                                                  CalcContext context, int debugDepth) {
         ItemStack[] options = ingredient.getItems();
         if (options.length == 0) return new CraftingTransaction();
 
         if (options.length == 1) {
             // [关键] 递归调用子项时，forcedRecipe 必须传 null，确保子材料自动寻优
-            return calculateRecursive(options[0].getItem(), totalNeed, false, virtualInventory, debugDepth, recursionStack, null);
+            return calculateRecursive(options[0].getItem(), totalNeed, false, context, debugDepth, null);
         }
 
-        // 多选项 Tag 处理
-        List<Item> sortedOptions = Arrays.stream(options)
-                .map(ItemStack::getItem)
-                .filter(item -> item != Items.AIR)
-                .sorted((i1, i2) -> {
-                    int c1 = virtualInventory.getOrDefault(i1, 0);
-                    int c2 = virtualInventory.getOrDefault(i2, 0);
-                    if (c1 > 0 && c2 == 0) return -1;
-                    if (c1 == 0 && c2 > 0) return 1;
-                    double cost1 = getCost(i1);
-                    double cost2 = getCost(i2);
-                    return Double.compare(cost1, cost2);
-                })
-                .collect(Collectors.toList());
-
-        CraftingTransaction bestFailure = null;
-
-        for (Item itemOption : sortedOptions) {
-            Map<Item, Integer> snapshotInventory = new HashMap<>(virtualInventory);
-
-            // [关键] 递归调用子项时，forcedRecipe 必须传 null
-            CraftingTransaction trialTx = calculateRecursive(itemOption, totalNeed, false, snapshotInventory, debugDepth, recursionStack, null);
-
-            // [判定]
-            if (isTransactionSatisfied(trialTx, virtualInventory, snapshotInventory)) {
-                virtualInventory.putAll(snapshotInventory); // Commit
-                return trialTx;
-            } else {
-                if (bestFailure == null) bestFailure = trialTx;
-            }
-        }
+        List<Item> sortedOptions = ingredientOptionStrategy.sortOptions(options, context.virtualInventory);
+        CraftingTransaction bestFailure = tryIngredientOptions(totalNeed, context, debugDepth, sortedOptions);
 
         return bestFailure != null ? bestFailure : new CraftingTransaction();
     }
@@ -355,5 +282,149 @@ public class TransactionCalculator {
         Map<Item, Integer> netDeltas = result.getNetDeltas();
         int deficit = -netDeltas.getOrDefault(target, 0);
         return deficit >= amountRequested;
+    }
+
+    private Map<Item, Integer> snapshotPlayerInventory() {
+        Map<Item, Integer> virtualInventory = new HashMap<>();
+        for (int i = 0; i < playerInventory.getContainerSize(); i++) {
+            ItemStack stack = playerInventory.getItem(i);
+            if (!stack.isEmpty()) {
+                virtualInventory.put(stack.getItem(), virtualInventory.getOrDefault(stack.getItem(), 0) + stack.getCount());
+            }
+        }
+        return virtualInventory;
+    }
+
+    private void logCalculationStart(Item target, int amount, CraftingRecipe forcedRecipe) {
+        RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
+        if (forcedRecipe != null) {
+            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.getId());
+        } else {
+            RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
+        }
+    }
+
+    private int consumeFromVirtualInventory(Item target, int amount, boolean isFinalTarget,
+                                            Map<Item, Integer> virtualInventory, CraftingTransaction currentTransaction) {
+        if (isFinalTarget) return 0;
+
+        int amountInInventory = virtualInventory.getOrDefault(target, 0);
+        if (amountInInventory > 0) {
+            int amountToConsume = Math.min(amount, amountInInventory);
+            currentTransaction.addNeed(target, amountToConsume);
+            virtualInventory.put(target, amountInInventory - amountToConsume);
+        }
+        return amountInInventory;
+    }
+
+    private List<CraftingRecipe> collectCandidateRecipes(Item target, CraftingRecipe forcedRecipe, String indent) {
+        if (forcedRecipe != null) {
+            RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.getId());
+            return Collections.singletonList(forcedRecipe);
+        }
+        return new ArrayList<>(CraftingPlanner.getInstance().getRecipesFor(target));
+    }
+
+    private CraftingTransaction createNeedOnlyTransaction(Item target, int amountToCraft) {
+        CraftingTransaction tx = new CraftingTransaction();
+        tx.addNeed(target, amountToCraft);
+        return tx;
+    }
+
+    private void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest, Map<Item, Integer> virtualInventory) {
+        if (candidates.size() <= 1) return;
+        candidates.sort((r1, r2) -> {
+            boolean s1 = checkShallowRecipe(r1, virtualInventory);
+            boolean s2 = checkShallowRecipe(r2, virtualInventory);
+            if (s1 && !s2) return -1;
+            if (!s1 && s2) return 1;
+            if (r1 == theoreticalBest) return -1;
+            if (r2 == theoreticalBest) return 1;
+            return 0;
+        });
+    }
+
+    private CraftingTransaction tryRecipeCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest,
+                                                    Item target, int amountToCraft, CalcContext context, int debugDepth,
+                                                    CraftingRecipe forcedRecipe, String indent) {
+        CraftingTransaction bestFailure = null;
+        for (CraftingRecipe recipe : candidates) {
+            Map<Item, Integer> snapshotInventory = new HashMap<>(context.virtualInventory);
+            CalcContext snapshotContext = new CalcContext(snapshotInventory, context.recursionStack);
+            CraftingTransaction trialTx = simulateRecipe(recipe, amountToCraft, snapshotContext, debugDepth);
+
+            if (satisfactionPolicy.isSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
+                if (forcedRecipe == null) {
+                    RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
+                }
+                context.virtualInventory.putAll(snapshotInventory);
+                return trialTx;
+            }
+
+            if (bestFailure == null || recipe == theoreticalBest) {
+                bestFailure = trialTx;
+            }
+        }
+        return bestFailure;
+    }
+
+    private List<Item> sortIngredientOptions(ItemStack[] options, Map<Item, Integer> virtualInventory) {
+        return Arrays.stream(options)
+                .map(ItemStack::getItem)
+                .filter(item -> item != Items.AIR)
+                .sorted((i1, i2) -> {
+                    int c1 = virtualInventory.getOrDefault(i1, 0);
+                    int c2 = virtualInventory.getOrDefault(i2, 0);
+                    if (c1 > 0 && c2 == 0) return -1;
+                    if (c1 == 0 && c2 > 0) return 1;
+                    double cost1 = getCost(i1);
+                    double cost2 = getCost(i2);
+                    return Double.compare(cost1, cost2);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private CraftingTransaction tryIngredientOptions(int totalNeed, CalcContext context, int debugDepth, List<Item> sortedOptions) {
+        CraftingTransaction bestFailure = null;
+        for (Item itemOption : sortedOptions) {
+            Map<Item, Integer> snapshotInventory = new HashMap<>(context.virtualInventory);
+            CalcContext snapshotContext = new CalcContext(snapshotInventory, context.recursionStack);
+            CraftingTransaction trialTx = calculateRecursive(itemOption, totalNeed, false, snapshotContext, debugDepth, null);
+
+            if (satisfactionPolicy.isSatisfied(trialTx, context.virtualInventory, snapshotInventory)) {
+                context.virtualInventory.putAll(snapshotInventory);
+                return trialTx;
+            }
+            if (bestFailure == null) {
+                bestFailure = trialTx;
+            }
+        }
+        return bestFailure;
+    }
+
+    private class DefaultRecipeCandidateStrategy implements RecipeCandidateStrategy {
+        @Override
+        public List<CraftingRecipe> collectCandidates(Item target, CraftingRecipe forcedRecipe, String indent) {
+            return collectCandidateRecipes(target, forcedRecipe, indent);
+        }
+
+        @Override
+        public void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest, Map<Item, Integer> virtualInventory) {
+            TransactionCalculator.this.sortCandidates(candidates, theoreticalBest, virtualInventory);
+        }
+    }
+
+    private class DefaultIngredientOptionStrategy implements IngredientOptionStrategy {
+        @Override
+        public List<Item> sortOptions(ItemStack[] options, Map<Item, Integer> virtualInventory) {
+            return sortIngredientOptions(options, virtualInventory);
+        }
+    }
+
+    private class NetDeltaSatisfactionPolicy implements SatisfactionPolicy {
+        @Override
+        public boolean isSatisfied(CraftingTransaction tx, Map<Item, Integer> startInv, Map<Item, Integer> endInv) {
+            return isTransactionSatisfied(tx, startInv, endInv);
+        }
     }
 }

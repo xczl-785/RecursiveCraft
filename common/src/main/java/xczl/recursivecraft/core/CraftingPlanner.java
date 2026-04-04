@@ -82,17 +82,43 @@ public class CraftingPlanner {
         RecursiveCraft.LOGGER.info("RecursiveCraft: Building optimal path tree...");
         long startTime = System.currentTimeMillis();
 
-        // 1. 初始化
+        resetPlanningState();
+
+        Set<Item> allItems = indexRecipesAndCollectItems(recipeManager);
+        int baseCount = initializeBaseCosts(allItems);
+        RecursiveCraft.LOGGER.info("Phase 1: Initialized {} absolute base items.", baseCount);
+
+        // 2. 第一轮收敛
+        runConvergenceLoop(100, null);
+
+        // 3. 拯救阶段：识别并临时处理在第一轮中未能计算成本的“孤岛”物品
+        Set<Item> itemsToRescue = findItemsToRescue();
+        applyRescueBaseCost(itemsToRescue);
+        RecursiveCraft.LOGGER.info("Phase 2: Rescued {} items.", itemsToRescue.size());
+
+        // 4. 第二轮收敛（终结阶段）
+        runConvergenceLoop(100, itemsToRescue);
+
+        // 5. 生成最终结果
+        int craftableCount = finalizePlanningResult(allItems);
+
+        long endTime = System.currentTimeMillis();
+        RecursiveCraft.LOGGER.info("RecursiveCraft: Engine finished. Found {} craftable items in {}ms.", craftableCount, (endTime - startTime));
+        isReady = true;
+    }
+
+    private void resetPlanningState() {
         isReady = false;
         minCostTable.clear();
         costMemo.clear();
         pathMemo.clear();
         recipeLookup.clear();
+    }
 
+    private Set<Item> indexRecipesAndCollectItems(RecipeManager recipeManager) {
         List<CraftingRecipe> allRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
         Set<Item> allItems = new HashSet<>();
 
-        // 建立产物到配方的反向索引
         for (CraftingRecipe recipe : allRecipes) {
             if (recipe.isSpecial() || recipe.getResultItem(null).isEmpty()) continue;
             Item output = recipe.getResultItem(null).getItem();
@@ -102,9 +128,12 @@ public class CraftingPlanner {
 
         // BuiltInRegistries.ITEM 在 Forge 和 Fabric 下都可用 (通过 Mojang 映射)
         allItems.addAll(BuiltInRegistries.ITEM.stream().toList());
+        return allItems;
+    }
 
-        // 初始化所有物品成本为无穷大，基础物品成本为1.0
+    private int initializeBaseCosts(Set<Item> allItems) {
         for (Item item : allItems) minCostTable.put(item, Double.MAX_VALUE);
+
         int baseCount = 0;
         for (Item item : allItems) {
             if (!recipeLookup.containsKey(item)) {
@@ -112,12 +141,10 @@ public class CraftingPlanner {
                 baseCount++;
             }
         }
-        RecursiveCraft.LOGGER.info("Phase 1: Initialized {} absolute base items.", baseCount);
+        return baseCount;
+    }
 
-        // 2. 第一轮收敛
-        runConvergenceLoop(100, null);
-
-        // 3. 拯救阶段：识别并临时处理在第一轮中未能计算成本的“孤岛”物品
+    private Set<Item> findItemsToRescue() {
         Set<Item> itemsToRescue = new HashSet<>();
         for (Map.Entry<Item, List<CraftingRecipe>> entry : recipeLookup.entrySet()) {
             for (CraftingRecipe recipe : entry.getValue()) {
@@ -131,17 +158,16 @@ public class CraftingPlanner {
                 }
             }
         }
+        return itemsToRescue;
+    }
 
-        // 将被拯救物品的成本临时设为1.0，使其能参与到下一轮计算中
+    private void applyRescueBaseCost(Set<Item> itemsToRescue) {
         for (Item item : itemsToRescue) {
             minCostTable.put(item, 1.0);
         }
-        RecursiveCraft.LOGGER.info("Phase 2: Rescued {} items.", itemsToRescue.size());
+    }
 
-        // 4. 第二轮收敛（终结阶段）
-        runConvergenceLoop(100, itemsToRescue);
-
-        // 5. 生成最终结果
+    private int finalizePlanningResult(Set<Item> allItems) {
         int craftableCount = 0;
         for (Item item : allItems) {
             double finalCost = minCostTable.getOrDefault(item, Double.MAX_VALUE);
@@ -154,10 +180,7 @@ public class CraftingPlanner {
                 }
             }
         }
-
-        long endTime = System.currentTimeMillis();
-        RecursiveCraft.LOGGER.info("RecursiveCraft: Engine finished. Found {} craftable items in {}ms.", craftableCount, (endTime - startTime));
-        isReady = true;
+        return craftableCount;
     }
 
     /**
