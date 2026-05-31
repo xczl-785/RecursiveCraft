@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
+import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -78,6 +80,77 @@ class CraftingTaskExecutorNbtTest {
 
         assertFalse(ok);
         assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("UNSUPPORTED")));
+    }
+
+    @Test
+    void visibleFailureCode_shouldCollapseInternalCommitFailuresToMissing() {
+        assertEquals("MISSING", CraftingTaskExecutor.visibleFailureCode(ExecutionCommitResult.Status.FAILED_REVALIDATION));
+        assertEquals("MISSING", CraftingTaskExecutor.visibleFailureCode(ExecutionCommitResult.Status.FAILED_CONSUME));
+    }
+
+    @Test
+    void visibleFailureCode_shouldKeepNonFailureStatusAsIs() {
+        assertEquals("SUCCESS", CraftingTaskExecutor.visibleFailureCode(ExecutionCommitResult.Status.SUCCESS));
+    }
+
+    @Test
+    void tryExecute_shouldSurfaceMissingToUserWhenRevalidateFailsAfterPlanning() throws Exception {
+        ItemStack redStick = new ItemStack(Items.STICK, 1);
+        redStick.getOrCreateTag().putString("variant", "red");
+        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_revalidate");
+        setPlanningResult(
+                Map.of(Items.TORCH, recipe),
+                Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
+                Map.of(Items.TORCH, List.of(recipe))
+        );
+
+        Inventory inventory = mock(Inventory.class);
+        when(inventory.getContainerSize()).thenReturn(1);
+        when(inventory.getItem(0)).thenReturn(
+                redStick.copy(),
+                redStick.copy(),
+                redStick.copy(),
+                ItemStack.EMPTY
+        );
+        ServerPlayer player = mockPlayer(inventory);
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("FAILED_REVALIDATION")));
+    }
+
+    @Test
+    void tryExecute_shouldSurfaceMissingToUserWhenConsumeFailsAfterRevalidate() throws Exception {
+        ItemStack redStick = new ItemStack(Items.STICK, 1);
+        redStick.getOrCreateTag().putString("variant", "red");
+        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_consume");
+        setPlanningResult(
+                Map.of(Items.TORCH, recipe),
+                Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
+                Map.of(Items.TORCH, List.of(recipe))
+        );
+
+        Inventory inventory = mock(Inventory.class);
+        when(inventory.getContainerSize()).thenReturn(1);
+        when(inventory.getItem(0)).thenReturn(
+                redStick.copy(),
+                redStick.copy(),
+                redStick.copy(),
+                redStick.copy(),
+                redStick.copy(),
+                ItemStack.EMPTY
+        );
+        ServerPlayer player = mockPlayer(inventory);
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("FAILED_CONSUME")));
     }
 
     private static ServerPlayer mockPlayer(Inventory inventory) {

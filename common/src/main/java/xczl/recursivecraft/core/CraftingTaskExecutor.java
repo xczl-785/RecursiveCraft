@@ -7,7 +7,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.data.CraftingTransaction;
@@ -15,15 +14,12 @@ import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
 import xczl.recursivecraft.runtime.inventory.PlayerInventoryView;
 import xczl.recursivecraft.runtime.match.DefaultMaterialMatcher;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
-import xczl.recursivecraft.utils.InventoryUtils;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
-/**
- * 核心合成任务执行器
- * 统一管理 Command 和 Packet 的合成逻辑。
- */
 public class CraftingTaskExecutor {
     private static class NetChanges {
         final Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> needs;
@@ -35,9 +31,6 @@ public class CraftingTaskExecutor {
         }
     }
 
-    /**
-     * 尝试执行递归合成任务
-     */
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, ResourceLocation forcedRecipeId, Consumer<Component> msgSender) {
         if (!isValidRequest(targetItem, amount, msgSender)) {
             return false;
@@ -57,25 +50,17 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        // === [优化] 先进行逻辑校验，通过后再打印日志 ===
-        // 这样做是为了防止打印"废案"的日志误导玩家。如果失败，我们只看诊断结果。
-
-        // 5. [检查一] 死循环防御：净产出是否达标？
         if (!hasEnoughTargetProvide(targetItem, amount, netChanges.provides)) {
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
             return false;
         }
 
-        // 6. [检查二] 基础材料是否充足？
         if (!hasEnoughMaterials(player, netChanges.needs)) {
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
             return false;
         }
 
-        // === 只有成功时，才打印详细的事务日志 ===
         printDebugLog(msgSender, netChanges.needs, netChanges.provides);
-
-        // 7. 执行合成
         return executeTransaction(player, targetItem, amount, transaction, msgSender);
     }
 
@@ -112,7 +97,6 @@ public class CraftingTaskExecutor {
                                                             ResourceLocation forcedRecipeId, CraftingRecipe usedRecipe) {
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
         CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
-
         return calculator.calculate(targetItem, amount, true, recipeForCalc);
     }
 
@@ -143,7 +127,9 @@ public class CraftingTaskExecutor {
         var view = new PlayerInventoryView(player);
         var snap = view.snapshot(normalizer);
         for (Map.Entry<xczl.recursivecraft.runtime.material.MaterialKey, Integer> e : netNeeds.entrySet()) {
-            if (snap.totals().getOrDefault(e.getKey(), 0) < e.getValue()) return false;
+            if (snap.totals().getOrDefault(e.getKey(), 0) < e.getValue()) {
+                return false;
+            }
         }
         return true;
     }
@@ -156,12 +142,12 @@ public class CraftingTaskExecutor {
             PlayerInventoryView view = new PlayerInventoryView(player);
             var plan = view.planExecution(transaction, normalizer, matcher);
             if (plan.consumptions().isEmpty() && !transaction.getMaterialNeeds().isEmpty()) {
-                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "FAILED_REVALIDATION"));
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", visibleFailureCode(ExecutionCommitResult.Status.FAILED_REVALIDATION)));
                 return false;
             }
             ExecutionCommitResult result = view.commitExecution(plan, transaction);
             if (!result.success()) {
-                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", result.status().name()));
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", visibleFailureCode(result.status())));
                 return false;
             }
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription().getString()));
@@ -172,97 +158,22 @@ public class CraftingTaskExecutor {
         }
     }
 
-    /**
-     * [简化版] 智能缺失材料报告
-     * 逻辑：仅进行"贪婪匹配"，不尝试递归合成。
-     * 直接对比 [配方需求] 和 [当前背包]，报出第一层缺口。
-     */
-    private static void reportMissingMaterials(ServerPlayer player, int amount, CraftingRecipe recipe, Consumer<Component> msgSender) {
-        if (recipe == null) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.no_recipe"));
-            return;
+    static String visibleFailureCode(ExecutionCommitResult.Status status) {
+        if (status == ExecutionCommitResult.Status.FAILED_REVALIDATION || status == ExecutionCommitResult.Status.FAILED_CONSUME) {
+            return "MISSING";
         }
-
-        msgSender.accept(Component.translatable("recursivecraft.msg.analyzing"));
-
-        Map<Item, Integer> virtualInv = snapshotInventory(player);
-        List<Ingredient> allIngredients = expandIngredients(player, recipe, amount);
-        Map<String, Integer> missingCounts = calculateMissingCounts(virtualInv, allIngredients);
-
-        // 4. 输出报告
-        if (missingCounts.isEmpty()) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.cycle_detected"));
-        } else {
-            StringBuilder sb = new StringBuilder();
-            missingCounts.forEach((name, count) -> {
-                if (!sb.isEmpty()) sb.append(", ");
-                sb.append(count).append("x ").append(name);
-            });
-            msgSender.accept(Component.translatable("recursivecraft.msg.missing_materials", sb.toString()));
-        }
-    }
-
-    private static Map<Item, Integer> snapshotInventory(ServerPlayer player) {
-        return InventoryUtils.snapshot(player.getInventory());
-    }
-
-    private static List<Ingredient> expandIngredients(ServerPlayer player, CraftingRecipe recipe, int amount) {
-        int outputCount = recipe.getResultItem(player.level().registryAccess()).getCount();
-        if (outputCount < 1) outputCount = 1;
-        int crafts = (int) Math.ceil((double) amount / outputCount);
-
-        List<Ingredient> allIngredients = new ArrayList<>();
-        for (Ingredient ing : recipe.getIngredients()) {
-            if (!ing.isEmpty()) {
-                for (int i = 0; i < crafts; i++) {
-                    allIngredients.add(ing);
-                }
-            }
-        }
-        return allIngredients;
-    }
-
-    private static Map<String, Integer> calculateMissingCounts(Map<Item, Integer> virtualInv, List<Ingredient> allIngredients) {
-        Map<String, Integer> missingCounts = new HashMap<>();
-        for (Ingredient ing : allIngredients) {
-            if (!consumeOneMatchingItem(virtualInv, ing)) {
-                ItemStack[] options = ing.getItems();
-                String name = (options.length > 0) ? options[0].getHoverName().getString() : Component.translatable("recursivecraft.msg.unknown_material").getString();
-                missingCounts.put(name, missingCounts.getOrDefault(name, 0) + 1);
-            }
-        }
-        return missingCounts;
-    }
-
-    private static boolean consumeOneMatchingItem(Map<Item, Integer> virtualInv, Ingredient ing) {
-        for (ItemStack option : ing.getItems()) {
-            Item item = option.getItem();
-            int has = virtualInv.getOrDefault(item, 0);
-            if (has > 0) {
-                virtualInv.put(item, has - 1);
-                return true;
-            }
-        }
-        return false;
+        return status.name();
     }
 
     private static void printDebugLog(Consumer<Component> msgSender, Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> netNeeds, Map<Item, Integer> netProvides) {
         msgSender.accept(Component.literal("§8--- [RecursiveCraft Transaction] ---"));
-
-        // 打印消耗
         if (!netNeeds.isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
-            netNeeds.forEach((key, itemAmount) ->
-                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + key.toString()))
-            );
+            netNeeds.forEach((key, itemAmount) -> msgSender.accept(Component.literal("  - " + itemAmount + "x " + key)));
         }
-
-        // 打印产出
         if (!netProvides.isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_produces"));
-            netProvides.forEach((item, itemAmount) ->
-                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
-            );
+            netProvides.forEach((item, itemAmount) -> msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString())));
         }
         msgSender.accept(Component.literal("§8---------------------------------"));
     }
