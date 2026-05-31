@@ -84,6 +84,12 @@
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/runtime/inventory/VirtualInventorySnapshot.java:26`
 
+### CR-008: 请求级 `MISSING / UNSUPPORTED` 收口已统一复用 `MaterialMatcher.aggregate(...)`
+
+`TransactionCalculator` 不再在 ingredient 级和 recipe 级手写 `sawUnsupported` 聚合，而是将候选尝试结果映射为 `CandidateMatchResult` 后统一交给 `MaterialMatcher.aggregate(...)` 形成最终 `RequestLevelKind`。
+
+**Evidence**: `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:181`
+
 ---
 
 ## Impact Surface

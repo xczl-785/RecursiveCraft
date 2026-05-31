@@ -11,6 +11,8 @@ import xczl.recursivecraft.runtime.inventory.VirtualInventorySnapshot;
 import xczl.recursivecraft.runtime.match.DefaultMaterialMatcher;
 import xczl.recursivecraft.runtime.match.IngredientRequirement;
 import xczl.recursivecraft.runtime.match.MaterialMatcher;
+import xczl.recursivecraft.runtime.match.CandidateMatchKind;
+import xczl.recursivecraft.runtime.match.CandidateMatchResult;
 import xczl.recursivecraft.runtime.match.RequestLevelKind;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.runtime.material.MaterialKey;
@@ -180,18 +182,18 @@ public class TransactionCalculator {
 
     private AttemptResult resolveIngredient(IngredientRequirement requirement, int totalNeed,
                                             CalcContext context, int debugDepth) {
-        if (requirement.hasUnsupportedCandidates() && requirement.exactCandidates().isEmpty()) {
-            CraftingTransaction tx = new CraftingTransaction();
-            tx.markUnsupported();
-            return unsupported(tx);
-        }
         if (requirement.exactCandidates().isEmpty()) {
-            return missing(new CraftingTransaction());
+            RequestLevelKind aggregatedKind = matcher.aggregate(
+                    toCandidateMatchResults(List.of(), requirement.hasUnsupportedCandidates())
+            ).kind();
+            return aggregatedKind == RequestLevelKind.UNSUPPORTED
+                    ? unsupported(new CraftingTransaction())
+                    : missing(new CraftingTransaction());
         }
 
         List<MaterialKey> sortedOptions = sortIngredientOptions(requirement, context.virtualInventory, totalNeed);
         AttemptResult bestFailure = null;
-        boolean sawUnsupported = false;
+        List<RequestLevelKind> candidateKinds = new ArrayList<>();
 
         for (MaterialKey candidate : sortedOptions) {
             CalcContext snapshotContext = cloneContext(context);
@@ -212,7 +214,7 @@ public class TransactionCalculator {
             if (bestFailure == null) {
                 bestFailure = new AttemptResult(trialTx, recursiveResult.kind());
             }
-            sawUnsupported |= recursiveResult.kind() == RequestLevelKind.UNSUPPORTED;
+            candidateKinds.add(recursiveResult.kind());
         }
 
         if (bestFailure == null) {
@@ -223,7 +225,10 @@ public class TransactionCalculator {
             ));
         }
 
-        if (sawUnsupported || requirement.hasUnsupportedCandidates()) {
+        RequestLevelKind aggregatedKind = matcher.aggregate(
+                toCandidateMatchResults(candidateKinds, requirement.hasUnsupportedCandidates())
+        ).kind();
+        if (aggregatedKind == RequestLevelKind.UNSUPPORTED) {
             bestFailure.transaction().markUnsupported();
             return unsupported(bestFailure.transaction());
         }
@@ -330,7 +335,7 @@ public class TransactionCalculator {
                                               boolean isFinalTarget, CalcContext context, int debugDepth,
                                               CraftingRecipe forcedRecipe, String indent) {
         CraftingTransaction bestFailure = null;
-        boolean sawUnsupported = false;
+        List<RequestLevelKind> candidateKinds = new ArrayList<>();
 
         for (CraftingRecipe recipe : candidates) {
             CalcContext snapshotContext = cloneContext(context);
@@ -347,17 +352,36 @@ public class TransactionCalculator {
             if (bestFailure == null || recipe == theoreticalBest) {
                 bestFailure = trial.transaction();
             }
-            sawUnsupported |= trial.kind() == RequestLevelKind.UNSUPPORTED;
+            candidateKinds.add(trial.kind());
         }
 
         if (bestFailure == null) {
             bestFailure = createNeedOnlyTransaction(target, amountToCraft, desiredKey);
         }
-        if (sawUnsupported) {
+        RequestLevelKind aggregatedKind = matcher.aggregate(toCandidateMatchResults(candidateKinds, false)).kind();
+        if (aggregatedKind == RequestLevelKind.UNSUPPORTED) {
             bestFailure.markUnsupported();
             return unsupported(bestFailure);
         }
         return missing(bestFailure);
+    }
+
+    private List<CandidateMatchResult> toCandidateMatchResults(List<RequestLevelKind> requestKinds,
+                                                               boolean includeUnsupportedRequirement) {
+        List<CandidateMatchResult> mapped = new ArrayList<>();
+        for (RequestLevelKind kind : requestKinds) {
+            if (kind == RequestLevelKind.SATISFIED) {
+                mapped.add(new CandidateMatchResult(CandidateMatchKind.MATCHED));
+            } else if (kind == RequestLevelKind.UNSUPPORTED) {
+                mapped.add(new CandidateMatchResult(CandidateMatchKind.UNSUPPORTED_MATERIAL_SEMANTICS));
+            } else {
+                mapped.add(new CandidateMatchResult(CandidateMatchKind.REJECTED_BY_IDENTITY));
+            }
+        }
+        if (includeUnsupportedRequirement) {
+            mapped.add(new CandidateMatchResult(CandidateMatchKind.UNSUPPORTED_MATERIAL_SEMANTICS));
+        }
+        return mapped;
     }
 
     private boolean recipeMatchesDesiredIdentity(CraftingRecipe recipe, MaterialKey desiredKey) {

@@ -201,6 +201,45 @@ class TransactionCalculatorNbtTest {
         assertTrue(tx.getResolvedOutputs().isEmpty());
     }
 
+    @Test
+    void calculate_shouldAggregateIngredientCandidateMissingAndUnsupportedAsUnsupported() {
+        ItemStack missingStick = stackWithVariant(Items.STICK, "missing");
+        ItemStack unsupportedStick = new ItemStack(Items.STICK);
+        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        Inventory inv = mockInventory();
+        TransactionCalculator calc = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                new ItemStack(Items.TORCH, 1),
+                ingredientOf(missingStick, unsupportedStick),
+                "test:torch_from_missing_or_unsupported_stick"
+        );
+
+        CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, recipe);
+
+        assertTrue(tx.isUnsupported());
+    }
+
+    @Test
+    void calculate_shouldAggregateRecipeCandidateMissingAndUnsupportedAsUnsupported() throws Exception {
+        ItemStack unsupportedStick = new ItemStack(Items.STICK);
+        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+
+        CraftingRecipe missingRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:missing_recipe");
+        CraftingRecipe unsupportedRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_recipe");
+        setPlanningResult(
+                Map.of(Items.TORCH, missingRecipe),
+                Map.of(Items.TORCH, 1.0d, Items.OAK_LOG, 1.0d, Items.STICK, 1.0d),
+                Map.of(Items.TORCH, List.of(missingRecipe, unsupportedRecipe))
+        );
+
+        Inventory inv = mockInventory();
+        TransactionCalculator calc = new TransactionCalculator(inv);
+
+        CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true);
+
+        assertTrue(tx.isUnsupported());
+    }
+
     private static Inventory mockInventory(ItemStack... stacks) {
         Inventory inv = mock(Inventory.class);
         when(inv.getContainerSize()).thenReturn(stacks.length);
