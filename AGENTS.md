@@ -76,16 +76,22 @@ RecursiveCraft 是一个递归合成辅助 Mod。当前核心能力是：
 
 后续继续该主题时，优先阅读以下文档：
 
-1. `docs/NBT_支持调研报告.md`
-2. `docs/存储支持调研报告.md`
-3. `docs/Refactoring_Progress.md`
-4. `docs/Code_Review_Report.md`
+1. `docs/README.md`
+2. `docs/architecture/NBT_总体方案决议.md`
+3. `docs/architecture/NBT_实施路线图.md`
+4. `docs/plans/2026-05-31-shared-inventory-abstraction-design.md`
+5. `docs/research/NBT_支持调研报告.md`
+6. `docs/research/存储支持调研报告.md`
+7. `docs/reviews/Code_Review_Report.md`
+8. `docs/refactoring/Refactoring_Progress.md`
 
 推荐阅读顺序：
 
-- 先看 NBT 调研，理解为什么必须先改库存抽象
-- 再看存储支持调研，理解方块模式和外部来源如何接入
-- 然后回到重构进度与代码审阅报告，确认当前代码基础
+- 先看 `docs/README.md` 获取分类与入口
+- 再看 `architecture` 下的决议与路线图，确认当前目标和阶段
+- 再看 `plans` 下的共享库存抽象层设计，确认实现输入
+- 然后看 `research` 下的调研与机制梳理，补背景
+- 最后看 `reviews` 与 `refactoring`，确认代码历史与遗留问题
 
 ---
 

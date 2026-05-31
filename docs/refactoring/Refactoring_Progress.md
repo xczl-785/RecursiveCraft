@@ -1,6 +1,6 @@
 # RecursiveCraft 重构进度板
 
-> 基于 `docs/Code_Review_Report.md` 审阅报告执行重构
+> 基于 `docs/reviews/Code_Review_Report.md` 审阅报告执行重构
 > 原则：不做功能性修改，仅重构。每阶段完成后编译验证、提交并推送。
 
 ---
