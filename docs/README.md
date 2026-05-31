@@ -62,7 +62,9 @@
 2. `architecture/NBT_实施路线图.md`
 3. `plans/2026-05-31-shared-inventory-abstraction-design.md`
 4. `plans/2026-05-31-nbt-phase1-implementation-plan.md`
-5. `capabilities/capability-index.md`
+5. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
+6. `reviews/2026-05-31-NBT_Phase2_手工验证清单.md`
+7. `capabilities/capability-index.md`
 
 ---
 
@@ -87,6 +89,8 @@
 ### 5.4 代码现状与历史
 
 - `reviews/Code_Review_Report.md`
+- `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
+- `reviews/2026-05-31-NBT_Phase2_手工验证清单.md`
 - `refactoring/Refactoring_Progress.md`
 
 ---
