@@ -65,10 +65,15 @@ public class PlayerInventoryView implements InventoryView {
         if (plan.consumptions().isEmpty() && !transaction.getMaterialNeeds().isEmpty()) {
             return ExecutionCommitResult.failedRevalidate();
         }
+        var normalizer = new xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer();
         // revalidate first
         for (ResolvedConsumption c : plan.consumptions()) {
             ItemStack stack = player.getInventory().getItem(c.slotIndex());
             if (stack.isEmpty() || stack.getCount() < c.amount()) {
+                return ExecutionCommitResult.failedRevalidate();
+            }
+            var normalized = normalizer.normalize(stack);
+            if (normalized.kind() != NormalizationKind.NORMALIZED || !normalized.key().equals(c.key())) {
                 return ExecutionCommitResult.failedRevalidate();
             }
         }

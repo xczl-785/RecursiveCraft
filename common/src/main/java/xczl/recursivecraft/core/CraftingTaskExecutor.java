@@ -84,8 +84,9 @@ public class CraftingTaskExecutor {
             msgSender.accept(Component.translatable("recursivecraft.msg.invalid_request"));
             return false;
         }
-        if (amount > ModConfig.maxCraftAmount) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.amount_over_limit", ModConfig.maxCraftAmount));
+        int maxCraftAmount = configuredMaxCraftAmount();
+        if (amount > maxCraftAmount) {
+            msgSender.accept(Component.translatable("recursivecraft.msg.amount_over_limit", maxCraftAmount));
             return false;
         }
         return true;
@@ -118,12 +119,18 @@ public class CraftingTaskExecutor {
     private static NetChanges splitNetChanges(CraftingTransaction transaction) {
         Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> netNeeds = new HashMap<>(transaction.getMaterialNeeds());
         Map<Item, Integer> netProvides = new HashMap<>();
-        for (Map.Entry<Item, Integer> entry : transaction.getNetDeltas().entrySet()) {
-            if (entry.getValue() > 0) {
-                netProvides.put(entry.getKey(), entry.getValue());
-            }
+        for (ItemStack output : transaction.getResolvedOutputs()) {
+            netProvides.merge(output.getItem(), output.getCount(), Integer::sum);
         }
         return new NetChanges(netNeeds, netProvides);
+    }
+
+    private static int configuredMaxCraftAmount() {
+        try {
+            return ModConfig.maxCraftAmount;
+        } catch (Throwable ignored) {
+            return 2304;
+        }
     }
 
     private static boolean hasEnoughTargetProvide(Item targetItem, int amount, Map<Item, Integer> netProvides) {

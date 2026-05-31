@@ -1,6 +1,7 @@
 package xczl.recursivecraft.core;
 
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.EndTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -184,6 +185,20 @@ class TransactionCalculatorNbtTest {
         assertEquals(2, resolved.getCount());
         assertNotNull(resolved.getTag());
         assertEquals("red-output", resolved.getTag().getString("variant"));
+    }
+
+    @Test
+    void calculate_shouldReturnUnsupportedWhenIngredientIdentityCannotBeNormalized() {
+        ItemStack unsupportedStick = new ItemStack(Items.STICK);
+        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        Inventory inv = mockInventory();
+        TransactionCalculator calc = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_stick");
+
+        CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, recipe);
+
+        assertTrue(tx.isUnsupported());
+        assertTrue(tx.getResolvedOutputs().isEmpty());
     }
 
     private static Inventory mockInventory(ItemStack... stacks) {
