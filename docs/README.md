@@ -82,6 +82,7 @@
 - `plans/2026-05-31-target-output-nbt-design.md`
 - `plans/2026-05-31-target-output-nbt-implementation-plan.md`
 - `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
+- `plans/2026-05-31-phase4a-handoff.md`
 
 ### 5.3 调研与背景
 
