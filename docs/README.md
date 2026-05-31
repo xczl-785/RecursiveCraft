@@ -79,6 +79,9 @@
 
 - `plans/2026-05-31-shared-inventory-abstraction-design.md`
 - `plans/2026-05-31-nbt-phase1-implementation-plan.md`
+- `plans/2026-05-31-target-output-nbt-design.md`
+- `plans/2026-05-31-target-output-nbt-implementation-plan.md`
+- `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
 
 ### 5.3 调研与背景
 

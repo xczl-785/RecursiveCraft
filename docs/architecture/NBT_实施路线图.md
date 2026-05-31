@@ -321,6 +321,11 @@ Phase 2 第一阶段的真实执行原子性要求限定为：
 3. 第三方存储兼容
 4. planner 是否需要局部感知 NBT
 
+当前已新增正式子方案：
+
+- `docs/plans/2026-05-31-target-output-nbt-design.md`
+- `docs/plans/2026-05-31-target-output-nbt-implementation-plan.md`
+
 ### 9.3 不做什么
 
 1. 不默认承诺全部扩展都会实现
