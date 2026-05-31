@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.runtime.inventory.InventorySource;
 import xczl.recursivecraft.runtime.inventory.InsertionResult;
+import xczl.recursivecraft.runtime.inventory.PlayerInventoryView;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.runtime.material.NormalizedMaterialPayload;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
@@ -13,6 +14,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ExecutionPrimitivesTest {
     @BeforeAll
@@ -40,5 +43,17 @@ class ExecutionPrimitivesTest {
         assertEquals(ExecutionCommitResult.Status.SUCCESS, ExecutionCommitResult.ok().status());
         assertEquals(ExecutionCommitResult.Status.FAILED_REVALIDATION, ExecutionCommitResult.failedRevalidate().status());
         assertEquals(InsertionResult.Status.INVENTORY_FULL, InsertionResult.inventoryFull().status());
+    }
+
+    @Test
+    void singleSource_emptyPlanWithNeeds_shouldFail() {
+        var player = mock(net.minecraft.world.entity.player.Player.class);
+        var inv = mock(net.minecraft.world.entity.player.Inventory.class);
+        when(player.getInventory()).thenReturn(inv);
+        PlayerInventoryView view = new PlayerInventoryView(player);
+        var tx = new xczl.recursivecraft.data.CraftingTransaction();
+        tx.addMaterialNeed(new MaterialKey(Items.STICK, new NormalizedMaterialPayload("v1", List.of())), 1);
+        ExecutionCommitResult r = view.commitExecution(new ResolvedExecutionPlan(List.of()), tx);
+        assertEquals(ExecutionCommitResult.Status.FAILED_REVALIDATION, r.status());
     }
 }

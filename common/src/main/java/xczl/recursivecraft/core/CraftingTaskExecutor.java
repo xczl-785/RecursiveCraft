@@ -26,10 +26,10 @@ import java.util.function.Consumer;
  */
 public class CraftingTaskExecutor {
     private static class NetChanges {
-        final Map<Item, Integer> needs;
+        final Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> needs;
         final Map<Item, Integer> provides;
 
-        private NetChanges(Map<Item, Integer> needs, Map<Item, Integer> provides) {
+        private NetChanges(Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> needs, Map<Item, Integer> provides) {
             this.needs = needs;
             this.provides = provides;
         }
@@ -123,13 +123,10 @@ public class CraftingTaskExecutor {
     }
 
     private static NetChanges splitNetChanges(CraftingTransaction transaction) {
-        Map<Item, Integer> netNeeds = new HashMap<>();
+        Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> netNeeds = new HashMap<>(transaction.getMaterialNeeds());
         Map<Item, Integer> netProvides = new HashMap<>();
-
         for (Map.Entry<Item, Integer> entry : transaction.getNetDeltas().entrySet()) {
-            if (entry.getValue() < 0) {
-                netNeeds.put(entry.getKey(), -entry.getValue());
-            } else if (entry.getValue() > 0) {
+            if (entry.getValue() > 0) {
                 netProvides.put(entry.getKey(), entry.getValue());
             }
         }
@@ -141,11 +138,12 @@ public class CraftingTaskExecutor {
         return actualProvide >= amount;
     }
 
-    private static boolean hasEnoughMaterials(ServerPlayer player, Map<Item, Integer> netNeeds) {
-        for (Map.Entry<Item, Integer> entry : netNeeds.entrySet()) {
-            if (player.getInventory().countItem(entry.getKey()) < entry.getValue()) {
-                return false;
-            }
+    private static boolean hasEnoughMaterials(ServerPlayer player, Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> netNeeds) {
+        var normalizer = new DefaultMaterialIdentityNormalizer();
+        var view = new PlayerInventoryView(player);
+        var snap = view.snapshot(normalizer);
+        for (Map.Entry<xczl.recursivecraft.runtime.material.MaterialKey, Integer> e : netNeeds.entrySet()) {
+            if (snap.totals().getOrDefault(e.getKey(), 0) < e.getValue()) return false;
         }
         return true;
     }
@@ -157,6 +155,10 @@ public class CraftingTaskExecutor {
             DefaultMaterialMatcher matcher = new DefaultMaterialMatcher(normalizer);
             PlayerInventoryView view = new PlayerInventoryView(player);
             var plan = view.planExecution(transaction, normalizer, matcher);
+            if (plan.consumptions().isEmpty() && !transaction.getMaterialNeeds().isEmpty()) {
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "FAILED_REVALIDATION"));
+                return false;
+            }
             ExecutionCommitResult result = view.commitExecution(plan, transaction);
             if (!result.success()) {
                 msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", result.status().name()));
@@ -244,14 +246,14 @@ public class CraftingTaskExecutor {
         return false;
     }
 
-    private static void printDebugLog(Consumer<Component> msgSender, Map<Item, Integer> netNeeds, Map<Item, Integer> netProvides) {
+    private static void printDebugLog(Consumer<Component> msgSender, Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> netNeeds, Map<Item, Integer> netProvides) {
         msgSender.accept(Component.literal("§8--- [RecursiveCraft Transaction] ---"));
 
         // 打印消耗
         if (!netNeeds.isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
-            netNeeds.forEach((item, itemAmount) ->
-                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString()))
+            netNeeds.forEach((key, itemAmount) ->
+                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + key.toString()))
             );
         }
 

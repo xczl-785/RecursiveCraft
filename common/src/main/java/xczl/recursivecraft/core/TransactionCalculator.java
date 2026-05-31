@@ -9,6 +9,7 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.core.registries.BuiltInRegistries;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.utils.InventoryUtils;
 
 import java.util.*;
@@ -44,6 +45,7 @@ public class TransactionCalculator {
 
     private final Set<Item> uncraftableCache = new HashSet<>();
     private static final int MAX_DEPTH = 30;
+    private final DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
 
     public TransactionCalculator(Inventory playerInventory) {
         this.playerInventory = playerInventory;
@@ -287,6 +289,10 @@ public class TransactionCalculator {
         if (amountInInventory > 0) {
             int consumed = Math.min(amount, amountInInventory);
             currentTransaction.addNeed(target, consumed);
+            var nk = normalizer.normalize(new ItemStack(target, 1));
+            if (nk.kind() == xczl.recursivecraft.runtime.material.NormalizationKind.NORMALIZED) {
+                currentTransaction.addMaterialNeed(nk.key(), consumed);
+            }
             virtualInventory.put(target, amountInInventory - consumed);
             return consumed;
         }
@@ -304,6 +310,10 @@ public class TransactionCalculator {
     private CraftingTransaction createNeedOnlyTransaction(Item target, int amountToCraft) {
         CraftingTransaction tx = new CraftingTransaction();
         tx.addNeed(target, amountToCraft);
+        var nk = normalizer.normalize(new ItemStack(target, 1));
+        if (nk.kind() == xczl.recursivecraft.runtime.material.NormalizationKind.NORMALIZED) {
+            tx.addMaterialNeed(nk.key(), amountToCraft);
+        }
         return tx;
     }
 

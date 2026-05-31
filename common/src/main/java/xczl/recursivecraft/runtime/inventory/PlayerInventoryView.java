@@ -62,6 +62,26 @@ public class PlayerInventoryView implements InventoryView {
 
     @Override
     public ExecutionCommitResult commitExecution(ResolvedExecutionPlan plan, CraftingTransaction transaction) {
+        if (plan.consumptions().isEmpty() && !transaction.getMaterialNeeds().isEmpty()) {
+            return ExecutionCommitResult.failedRevalidate();
+        }
+        // revalidate first
+        for (ResolvedConsumption c : plan.consumptions()) {
+            ItemStack stack = player.getInventory().getItem(c.slotIndex());
+            if (stack.isEmpty() || stack.getCount() < c.amount()) {
+                return ExecutionCommitResult.failedRevalidate();
+            }
+        }
+        // simulate grouped consume to avoid partial commit on same slot
+        Map<Integer, Integer> consumeBySlot = new HashMap<>();
+        for (ResolvedConsumption c : plan.consumptions()) {
+            consumeBySlot.merge(c.slotIndex(), c.amount(), Integer::sum);
+        }
+        for (Map.Entry<Integer, Integer> e : consumeBySlot.entrySet()) {
+            if (player.getInventory().getItem(e.getKey()).getCount() < e.getValue()) {
+                return ExecutionCommitResult.failedRevalidate();
+            }
+        }
         for (ResolvedConsumption c : plan.consumptions()) {
             if (!c.source().consumeAt(c.slotIndex(), c.key(), c.amount())) {
                 return ExecutionCommitResult.failedConsume();
