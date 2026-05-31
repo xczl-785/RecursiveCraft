@@ -74,7 +74,7 @@
 
 ### CR-006: 当前执行链路主路径已按材料身份建模，但仍保留少量 `Item` 级桥接
 
-当前正式主路径中的快照、材料匹配、虚拟扣减与正式执行已经围绕 `MaterialKey` 工作；但顶层目标产出检查和部分事务字段仍保留 `Item` 级桥接，用于支撑第一阶段范围内的行为。
+当前正式主路径中的快照、材料匹配、虚拟扣减与正式执行已经围绕 `MaterialKey` 工作；但顶层目标产出检查和部分事务字段仍保留 `Item` 级桥接，用于支撑第一阶段范围内的行为。其中 `CraftingTransaction.needs` 现已收紧为“仅表示 unresolved 的 item-level missing deficits”，不再记录已经被虚拟库存满足的消费。
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:103`
 

@@ -420,7 +420,6 @@ public class TransactionCalculator {
             return 0;
         }
         int consumed = Math.min(amount, available);
-        transaction.addNeed(key.item(), consumed);
         transaction.addMaterialNeed(key, consumed);
         addToVirtualInventory(context, key, -consumed);
         return consumed;

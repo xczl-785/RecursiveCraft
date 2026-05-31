@@ -43,7 +43,7 @@ class TransactionCalculatorTest {
     }
 
     @Test
-    void calculate_withForcedRecipe_shouldConsumeRequiredMaterialFromInventory() {
+    void calculate_withForcedRecipe_shouldNotRecordConsumedInventoryAsNeed() {
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
@@ -56,7 +56,8 @@ class TransactionCalculatorTest {
         CraftingTransaction tx = calculator.calculate(Items.OAK_PLANKS, 4, true, recipe);
         Map<Item, Integer> needs = tx.getNeeds();
 
-        assertEquals(1, needs.getOrDefault(Items.OAK_LOG, 0));
+        assertEquals(0, needs.getOrDefault(Items.OAK_LOG, 0));
+        assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
         assertEquals(4, tx.getProvides().getOrDefault(Items.OAK_PLANKS, 0));
         assertEquals(1, tx.getResolvedOutputs().size());
         assertEquals(4, tx.getResolvedOutputs().get(0).getCount());
@@ -79,7 +80,7 @@ class TransactionCalculatorTest {
     }
 
     @Test
-    void resolveIngredient_withMultipleOptions_shouldPreferInventoryAvailableOption() {
+    void resolveIngredient_withMultipleOptions_shouldPreferInventoryAvailableOptionWithoutNeedBridgeLeak() {
         Inventory inv = mockInventory(new ItemStack(Items.DIORITE, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
@@ -90,8 +91,9 @@ class TransactionCalculatorTest {
         );
 
         CraftingTransaction tx = calculator.calculate(Items.STICK, 1, true, recipe);
-        assertEquals(1, tx.getNeeds().getOrDefault(Items.DIORITE, 0));
+        assertEquals(0, tx.getNeeds().getOrDefault(Items.DIORITE, 0));
         assertEquals(0, tx.getNeeds().getOrDefault(Items.COBBLESTONE, 0));
+        assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
     }
 
     @Test
