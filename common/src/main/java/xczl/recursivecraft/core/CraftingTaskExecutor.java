@@ -11,6 +11,10 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
+import xczl.recursivecraft.runtime.inventory.PlayerInventoryView;
+import xczl.recursivecraft.runtime.match.DefaultMaterialMatcher;
+import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.utils.InventoryUtils;
 
 import java.util.*;
@@ -108,6 +112,13 @@ public class CraftingTaskExecutor {
 
         CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, recipeForCalc);
         transaction.addProvide(targetItem, amount);
+        DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
+        for (Map.Entry<Item, Integer> e : transaction.getNeeds().entrySet()) {
+            var r = normalizer.normalize(new ItemStack(e.getKey(), 1));
+            if (r.kind() == xczl.recursivecraft.runtime.material.NormalizationKind.NORMALIZED) {
+                transaction.addMaterialNeed(r.key(), e.getValue());
+            }
+        }
         return transaction;
     }
 
@@ -142,7 +153,15 @@ public class CraftingTaskExecutor {
     private static boolean executeTransaction(ServerPlayer player, Item targetItem, int amount,
                                               CraftingTransaction transaction, Consumer<Component> msgSender) {
         try {
-            transaction.execute(player);
+            DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
+            DefaultMaterialMatcher matcher = new DefaultMaterialMatcher(normalizer);
+            PlayerInventoryView view = new PlayerInventoryView(player);
+            var plan = view.planExecution(transaction, normalizer, matcher);
+            ExecutionCommitResult result = view.commitExecution(plan, transaction);
+            if (!result.success()) {
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", result.status().name()));
+                return false;
+            }
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription().getString()));
             return true;
         } catch (Exception e) {

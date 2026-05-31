@@ -20,17 +20,29 @@ public class DefaultMaterialMatcher implements MaterialMatcher {
     @Override
     public IngredientRequirement requirementOf(Ingredient ingredient) {
         List<MaterialKey> candidates = new ArrayList<>();
+        boolean hasUnsupported = false;
         for (ItemStack stack : ingredient.getItems()) {
             NormalizationResult result = normalizer.normalize(stack);
             if (result.kind() == NormalizationKind.NORMALIZED) {
                 candidates.add(result.key());
+            } else if (result.kind() == NormalizationKind.UNSUPPORTED_MATERIAL_SEMANTICS) {
+                hasUnsupported = true;
             }
         }
-        return new IngredientRequirement(List.copyOf(candidates), List.of());
+        return new IngredientRequirement(List.copyOf(candidates), List.of(), hasUnsupported);
     }
 
     @Override
     public CandidateMatchResult match(MaterialKey candidate, IngredientRequirement requirement) {
+        if (requirement.hasUnsupportedCandidates()) {
+            return new CandidateMatchResult(CandidateMatchKind.UNSUPPORTED_MATERIAL_SEMANTICS);
+        }
+        for (RuntimeMatchClause clause : requirement.runtimeClauses()) {
+            if (clause.kind() == RuntimeMatchClause.ClauseKind.EXACT_PAYLOAD &&
+                    !requirement.exactCandidates().stream().anyMatch(k -> k.payload().equals(candidate.payload()))) {
+                return new CandidateMatchResult(CandidateMatchKind.REJECTED_BY_IDENTITY);
+            }
+        }
         if (requirement.exactCandidates().contains(candidate)) {
             return new CandidateMatchResult(CandidateMatchKind.MATCHED);
         }

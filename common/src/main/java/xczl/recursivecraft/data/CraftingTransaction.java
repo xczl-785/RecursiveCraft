@@ -8,8 +8,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import xczl.recursivecraft.runtime.material.MaterialKey;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +26,8 @@ public class CraftingTransaction {
 
     // 毛产出列表 (计算过程中作为副产品 "放回" 的总和 + 最终产物)
     private final Map<Item, Integer> provides = new HashMap<>();
+    private final Map<MaterialKey, Integer> materialNeeds = new HashMap<>();
+    private final List<ItemStack> resolvedOutputs = new ArrayList<>();
 
     public Map<Item, Integer> getNeeds() {
         return needs;
@@ -31,23 +36,32 @@ public class CraftingTransaction {
     public Map<Item, Integer> getProvides() {
         return provides;
     }
+    public Map<MaterialKey, Integer> getMaterialNeeds() { return materialNeeds; }
+    public List<ItemStack> getResolvedOutputs() { return List.copyOf(resolvedOutputs); }
 
     // 添加需求 (毛)
     public void addNeed(Item item, int amount) {
         if (item == Items.AIR || amount <= 0) return;
         needs.put(item, needs.getOrDefault(item, 0) + amount);
     }
+    public void addMaterialNeed(MaterialKey key, int amount) {
+        if (key == null || amount <= 0) return;
+        materialNeeds.put(key, materialNeeds.getOrDefault(key, 0) + amount);
+    }
 
     // 添加产出 (毛)
     public void addProvide(Item item, int amount) {
         if (item == Items.AIR || amount <= 0) return;
         provides.put(item, provides.getOrDefault(item, 0) + amount);
+        resolvedOutputs.add(new ItemStack(item, amount));
     }
 
     // 合并另一个事务 (用于递归) [1]
     public void merge(CraftingTransaction other) {
         other.needs.forEach(this::addNeed);
         other.provides.forEach(this::addProvide);
+        other.materialNeeds.forEach(this::addMaterialNeed);
+        this.resolvedOutputs.addAll(other.resolvedOutputs.stream().map(ItemStack::copy).toList());
     }
 
     // <<< [修复] 新增方法：计算"净变化" >>>
