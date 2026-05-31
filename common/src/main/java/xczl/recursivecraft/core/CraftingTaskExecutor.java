@@ -62,8 +62,7 @@ public class CraftingTaskExecutor {
 
         // 5. [检查一] 死循环防御：净产出是否达标？
         if (!hasEnoughTargetProvide(targetItem, amount, netChanges.provides)) {
-            // 失败：进入智能诊断 (此时不打印 Transaction Log)
-            reportMissingMaterials(player, amount, usedRecipe, msgSender);
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
             return false;
         }
 
@@ -115,13 +114,6 @@ public class CraftingTaskExecutor {
 
         CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, recipeForCalc);
         transaction.addProvide(targetItem, amount);
-        DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
-        for (Map.Entry<Item, Integer> e : transaction.getNeeds().entrySet()) {
-            var r = normalizer.normalize(new ItemStack(e.getKey(), 1));
-            if (r.kind() == xczl.recursivecraft.runtime.material.NormalizationKind.NORMALIZED) {
-                transaction.addMaterialNeed(r.key(), e.getValue());
-            }
-        }
         return transaction;
     }
 
