@@ -118,6 +118,29 @@ class PlayerInventoryViewTest {
         verify(player, never()).drop(any(ItemStack.class), org.mockito.ArgumentMatchers.anyBoolean());
     }
 
+    @Test
+    void snapshot_shouldDeduplicateMaterialKeysPerItem() {
+        ItemStack redStickA = stackWithVariant("red");
+        redStickA.setCount(2);
+        ItemStack redStickB = stackWithVariant("red");
+        redStickB.setCount(3);
+        MaterialKey redKey = NORMALIZER.normalize(redStickA.copy()).key();
+
+        Inventory inventory = mock(Inventory.class);
+        when(inventory.getContainerSize()).thenReturn(2);
+        when(inventory.getItem(0)).thenReturn(redStickA);
+        when(inventory.getItem(1)).thenReturn(redStickB);
+        Player player = mock(Player.class);
+        when(player.getInventory()).thenReturn(inventory);
+
+        PlayerInventoryView view = new PlayerInventoryView(player);
+        VirtualInventorySnapshot snapshot = view.snapshot(NORMALIZER);
+
+        assertEquals(5, snapshot.totals().getOrDefault(redKey, 0));
+        assertEquals(1, snapshot.itemIndex().getOrDefault(Items.STICK, List.of()).size());
+        assertEquals(redKey, snapshot.itemIndex().get(Items.STICK).get(0));
+    }
+
     private static ItemStack stackWithVariant(String variant) {
         ItemStack stack = new ItemStack(Items.STICK, 1);
         stack.getOrCreateTag().putString("variant", variant);

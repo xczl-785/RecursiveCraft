@@ -478,24 +478,7 @@ public class TransactionCalculator {
     }
 
     private VirtualInventorySnapshot snapshotPlayerInventory() {
-        Map<MaterialKey, Integer> totals = new HashMap<>();
-        Map<Item, Set<MaterialKey>> indexedKeys = new HashMap<>();
-        for (int i = 0; i < playerInventory.getContainerSize(); i++) {
-            ItemStack stack = playerInventory.getItem(i);
-            if (stack.isEmpty()) {
-                continue;
-            }
-            NormalizationResult normalized = normalizer.normalize(stack);
-            if (normalized.kind() != NormalizationKind.NORMALIZED) {
-                continue;
-            }
-            totals.merge(normalized.key(), stack.getCount(), Integer::sum);
-            indexedKeys.computeIfAbsent(stack.getItem(), ignored -> new LinkedHashSet<>()).add(normalized.key());
-        }
-
-        Map<Item, List<MaterialKey>> itemIndex = new HashMap<>();
-        indexedKeys.forEach((item, keys) -> itemIndex.put(item, new ArrayList<>(keys)));
-        return new VirtualInventorySnapshot(totals, itemIndex);
+        return VirtualInventorySnapshot.fromInventory(playerInventory, normalizer);
     }
 
     private CalcContext cloneContext(CalcContext source) {

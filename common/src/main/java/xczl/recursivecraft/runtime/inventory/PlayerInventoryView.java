@@ -25,17 +25,7 @@ public class PlayerInventoryView implements InventoryView {
 
     @Override
     public VirtualInventorySnapshot snapshot(MaterialIdentityNormalizer normalizer) {
-        Map<xczl.recursivecraft.runtime.material.MaterialKey, Integer> totals = new HashMap<>();
-        Map<Item, List<xczl.recursivecraft.runtime.material.MaterialKey>> index = new HashMap<>();
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (stack.isEmpty()) continue;
-            var n = normalizer.normalize(stack);
-            if (n.kind() != NormalizationKind.NORMALIZED) continue;
-            totals.merge(n.key(), stack.getCount(), Integer::sum);
-            index.computeIfAbsent(stack.getItem(), k -> new ArrayList<>()).add(n.key());
-        }
-        return new VirtualInventorySnapshot(totals, index);
+        return VirtualInventorySnapshot.fromInventory(player.getInventory(), normalizer);
     }
 
     @Override

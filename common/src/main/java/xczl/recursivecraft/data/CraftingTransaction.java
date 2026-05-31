@@ -12,7 +12,6 @@ import java.util.Map;
 
 public class CraftingTransaction {
     private final Map<Item, Integer> needs = new HashMap<>();
-    private final Map<Item, Integer> provides = new HashMap<>();
     private final Map<MaterialKey, Integer> materialNeeds = new HashMap<>();
     private final List<ItemStack> resolvedOutputs = new ArrayList<>();
     private boolean unsupported;
@@ -22,7 +21,11 @@ public class CraftingTransaction {
     }
 
     public Map<Item, Integer> getProvides() {
-        return provides;
+        Map<Item, Integer> provides = new HashMap<>();
+        for (ItemStack output : resolvedOutputs) {
+            provides.merge(output.getItem(), output.getCount(), Integer::sum);
+        }
+        return Map.copyOf(provides);
     }
 
     public Map<MaterialKey, Integer> getMaterialNeeds() {
@@ -61,11 +64,6 @@ public class CraftingTransaction {
         }
         ItemStack copy = stack.copy();
         resolvedOutputs.add(copy);
-        provides.put(copy.getItem(), provides.getOrDefault(copy.getItem(), 0) + copy.getCount());
-    }
-
-    public void addProvide(Item item, int amount) {
-        addResolvedOutput(new ItemStack(item, amount));
     }
 
     public void merge(CraftingTransaction other) {

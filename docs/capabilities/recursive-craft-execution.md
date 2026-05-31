@@ -24,7 +24,7 @@
 
 该能力负责把玩家的递归合成请求转化为一笔可执行的事务。当前实现不是逐级真实摆放和运行每一级 recipe，而是先在内存中做“基于 `MaterialKey` 的虚拟库存递归求解”，再把事务桥接成 `ResolvedExecutionPlan`，最后对玩家背包做 revalidate、精确扣减与产物投放。
 
-该能力仍然是当前 NBT 兼容问题的核心承压区，但其主执行链已经从纯 `Map<Item, Integer>` 模型切换为运行时材料身份模型；当前残留问题主要集中在少量 `Item` 级桥接、旧事务字段与后续扩展保留点。
+该能力仍然是当前 NBT 兼容问题的核心承压区，但其主执行链已经从纯 `Map<Item, Integer>` 模型切换为运行时材料身份模型；当前残留问题主要集中在少量 `Item` 级桥接、matcher 预留骨架与后续扩展保留点。
 
 ---
 
@@ -78,6 +78,12 @@
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:103`
 
+### CR-007: 玩家背包快照构造已统一收拢到 `VirtualInventorySnapshot.fromInventory(...)`
+
+`TransactionCalculator` 与 `PlayerInventoryView` 不再各自维护一套背包快照构造逻辑，而是统一调用 `VirtualInventorySnapshot.fromInventory(...)` 生成运行时快照。
+
+**Evidence**: `common/src/main/java/xczl/recursivecraft/runtime/inventory/VirtualInventorySnapshot.java:26`
+
 ---
 
 ## Impact Surface
@@ -86,7 +92,7 @@
 | --- | --- | --- |
 | 入口一致性 | 若新增入口，需确认其最终仍走统一执行器而不是另写一套库存/事务逻辑 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:37` |
 | 配方解析 | 若改动 JEI 强制 recipe 或顶层默认选配逻辑，需同步检查命令、包和 JEI 行为 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:88` |
-| 库存模型 | 若改动运行时身份模型，需同时检查快照、缺料判断、虚拟扣减、执行桥接与请求级失败语义 | `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:97` |
+| 库存模型 | 若改动运行时身份模型，需同时检查共享快照构造、缺料判断、虚拟扣减、执行桥接与请求级失败语义 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/VirtualInventorySnapshot.java:26` |
 | 执行语义 | 若切换为多来源或容器级执行，需重写 `InventoryView`、`ResolvedExecutionPlan` 与事务桥接边界 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/PlayerInventoryView.java:42` |
 | NBT 兼容 | 若继续推进 NBT，需统一修正残留 `Item` 级桥接、缺料分析与目标产物语义 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:103` |
 

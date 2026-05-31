@@ -21,10 +21,11 @@ class CraftingTransactionTest {
     void legacyExecutionBridgeMethods_shouldNotBeExposed() {
         assertThrows(NoSuchMethodException.class, () -> CraftingTransaction.class.getDeclaredMethod("getNetDeltas"));
         assertThrows(NoSuchMethodException.class, () -> CraftingTransaction.class.getDeclaredMethod("execute", net.minecraft.world.entity.player.Player.class));
+        assertThrows(NoSuchMethodException.class, () -> CraftingTransaction.class.getDeclaredMethod("addProvide", Item.class, int.class));
     }
 
     @Test
-    void merge_shouldAccumulateNeedsAndProvides() {
+    void merge_shouldAccumulateNeedsAndResolvedOutputs() {
         var item = Items.IRON_INGOT;
 
         CraftingTransaction left = new CraftingTransaction();
@@ -32,7 +33,7 @@ class CraftingTransactionTest {
 
         CraftingTransaction right = new CraftingTransaction();
         right.addNeed(item, 3);
-        right.addProvide(item, 1);
+        right.addResolvedOutput(new ItemStack(item, 1));
 
         left.merge(right);
 
@@ -41,16 +42,16 @@ class CraftingTransactionTest {
     }
 
     @Test
-    void addNeedAndProvide_shouldIgnoreInvalidInputs() {
+    void addNeedAndResolvedOutput_shouldIgnoreInvalidInputs() {
         var item = Items.GOLD_INGOT;
         CraftingTransaction tx = new CraftingTransaction();
 
         tx.addNeed(Items.AIR, 1);
         tx.addNeed(item, 0);
         tx.addNeed(item, -1);
-        tx.addProvide(Items.AIR, 1);
-        tx.addProvide(item, 0);
-        tx.addProvide(item, -3);
+        tx.addResolvedOutput(new ItemStack(Items.AIR, 1));
+        tx.addResolvedOutput(new ItemStack(item, 0));
+        tx.addResolvedOutput(new ItemStack(item, -3));
 
         assertTrue(tx.getNeeds().isEmpty());
         assertTrue(tx.getProvides().isEmpty());
