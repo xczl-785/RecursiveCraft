@@ -28,4 +28,9 @@ public final class NormalizedMaterialPayload {
 
     @Override
     public int hashCode() { return Objects.hash(canonicalVersion, fields); }
+
+    @Override
+    public String toString() {
+        return "NormalizedMaterialPayload{canonicalVersion='" + canonicalVersion + "', fields=" + fields + "}";
+    }
 }

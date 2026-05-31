@@ -1,5 +1,6 @@
 package xczl.recursivecraft.runtime.material;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 
 import java.util.Objects;
@@ -25,4 +26,9 @@ public final class MaterialKey {
 
     @Override
     public int hashCode() { return Objects.hash(item, payload); }
+
+    @Override
+    public String toString() {
+        return "MaterialKey{item=" + BuiltInRegistries.ITEM.getKey(item) + ", payload=" + payload + "}";
+    }
 }
