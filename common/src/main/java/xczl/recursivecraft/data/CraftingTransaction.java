@@ -52,19 +52,25 @@ public class CraftingTransaction {
         materialNeeds.put(key, materialNeeds.getOrDefault(key, 0) + amount);
     }
 
+    public void addResolvedOutput(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || stack.getItem() == Items.AIR || stack.getCount() <= 0) {
+            return;
+        }
+        ItemStack copy = stack.copy();
+        resolvedOutputs.add(copy);
+        provides.put(copy.getItem(), provides.getOrDefault(copy.getItem(), 0) + copy.getCount());
+    }
+
     // 添加产出 (毛)
     public void addProvide(Item item, int amount) {
-        if (item == Items.AIR || amount <= 0) return;
-        provides.put(item, provides.getOrDefault(item, 0) + amount);
-        resolvedOutputs.add(new ItemStack(item, amount));
+        addResolvedOutput(new ItemStack(item, amount));
     }
 
     // 合并另一个事务 (用于递归) [1]
     public void merge(CraftingTransaction other) {
         other.needs.forEach(this::addNeed);
-        other.provides.forEach(this::addProvide);
         other.materialNeeds.forEach(this::addMaterialNeed);
-        this.resolvedOutputs.addAll(other.resolvedOutputs.stream().map(ItemStack::copy).toList());
+        other.resolvedOutputs.forEach(this::addResolvedOutput);
         this.unsupported = this.unsupported || other.unsupported;
     }
 

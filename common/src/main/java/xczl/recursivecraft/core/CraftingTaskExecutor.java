@@ -112,9 +112,7 @@ public class CraftingTaskExecutor {
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
         CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
 
-        CraftingTransaction transaction = calculator.calculate(targetItem, amount, true, recipeForCalc);
-        transaction.addProvide(targetItem, amount);
-        return transaction;
+        return calculator.calculate(targetItem, amount, true, recipeForCalc);
     }
 
     private static NetChanges splitNetChanges(CraftingTransaction transaction) {

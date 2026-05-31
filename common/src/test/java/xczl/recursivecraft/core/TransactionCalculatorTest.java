@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,7 +57,10 @@ class TransactionCalculatorTest {
         Map<Item, Integer> needs = tx.getNeeds();
 
         assertEquals(1, needs.getOrDefault(Items.OAK_LOG, 0));
-        assertEquals(0, tx.getProvides().getOrDefault(Items.OAK_PLANKS, 0));
+        assertEquals(4, tx.getProvides().getOrDefault(Items.OAK_PLANKS, 0));
+        assertEquals(1, tx.getResolvedOutputs().size());
+        assertEquals(4, tx.getResolvedOutputs().get(0).getCount());
+        assertNotNull(tx.getResolvedOutputs().get(0));
     }
 
     @Test
