@@ -9,6 +9,9 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.core.registries.BuiltInRegistries;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.runtime.match.DefaultMaterialMatcher;
+import xczl.recursivecraft.runtime.match.IngredientRequirement;
+import xczl.recursivecraft.runtime.match.MaterialMatcher;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.utils.InventoryUtils;
 
@@ -46,6 +49,7 @@ public class TransactionCalculator {
     private final Set<Item> uncraftableCache = new HashSet<>();
     private static final int MAX_DEPTH = 30;
     private final DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
+    private final MaterialMatcher matcher = new DefaultMaterialMatcher(normalizer);
 
     public TransactionCalculator(Inventory playerInventory) {
         this.playerInventory = playerInventory;
@@ -199,6 +203,12 @@ public class TransactionCalculator {
                                                   CalcContext context, int debugDepth) {
         ItemStack[] options = ingredient.getItems();
         if (options.length == 0) return new CraftingTransaction();
+        IngredientRequirement req = matcher.requirementOf(ingredient);
+        if (req.hasUnsupportedCandidates()) {
+            CraftingTransaction tx = new CraftingTransaction();
+            tx.markUnsupported();
+            return tx;
+        }
 
         if (options.length == 1) {
             // [关键] 递归调用子项时，forcedRecipe 必须传 null，确保子材料自动寻优

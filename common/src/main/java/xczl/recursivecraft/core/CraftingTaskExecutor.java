@@ -52,6 +52,10 @@ public class CraftingTaskExecutor {
         CraftingTransaction transaction = calculateTransaction(player, targetItem, amount, forcedRecipeId, usedRecipe);
 
         NetChanges netChanges = splitNetChanges(transaction);
+        if (transaction.isUnsupported()) {
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "UNSUPPORTED"));
+            return false;
+        }
 
         // === [优化] 先进行逻辑校验，通过后再打印日志 ===
         // 这样做是为了防止打印"废案"的日志误导玩家。如果失败，我们只看诊断结果。
@@ -65,8 +69,7 @@ public class CraftingTaskExecutor {
 
         // 6. [检查二] 基础材料是否充足？
         if (!hasEnoughMaterials(player, netChanges.needs)) {
-            // 失败：进入智能诊断 (此时不打印 Transaction Log)
-            reportMissingMaterials(player, amount, usedRecipe, msgSender);
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
             return false;
         }
 

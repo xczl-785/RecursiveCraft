@@ -28,6 +28,7 @@ public class CraftingTransaction {
     private final Map<Item, Integer> provides = new HashMap<>();
     private final Map<MaterialKey, Integer> materialNeeds = new HashMap<>();
     private final List<ItemStack> resolvedOutputs = new ArrayList<>();
+    private boolean unsupported;
 
     public Map<Item, Integer> getNeeds() {
         return needs;
@@ -38,6 +39,8 @@ public class CraftingTransaction {
     }
     public Map<MaterialKey, Integer> getMaterialNeeds() { return materialNeeds; }
     public List<ItemStack> getResolvedOutputs() { return List.copyOf(resolvedOutputs); }
+    public boolean isUnsupported() { return unsupported; }
+    public void markUnsupported() { this.unsupported = true; }
 
     // 添加需求 (毛)
     public void addNeed(Item item, int amount) {
@@ -62,6 +65,7 @@ public class CraftingTransaction {
         other.provides.forEach(this::addProvide);
         other.materialNeeds.forEach(this::addMaterialNeed);
         this.resolvedOutputs.addAll(other.resolvedOutputs.stream().map(ItemStack::copy).toList());
+        this.unsupported = this.unsupported || other.unsupported;
     }
 
     // <<< [修复] 新增方法：计算"净变化" >>>
