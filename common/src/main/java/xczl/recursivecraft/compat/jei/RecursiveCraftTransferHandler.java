@@ -25,6 +25,7 @@ import net.minecraft.world.item.crafting.Ingredient;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 import xczl.recursivecraft.networking.PacketHandler;
+import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,46 +65,39 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
             boolean maxTransfer,
             boolean doTransfer
     ) {
-        // 1. 基础检查
         ItemStack output = recipe.getResultItem(player.level().registryAccess());
         if (output.isEmpty()) {
-            return new SimpleError(IRecipeTransferError.Type.USER_FACING, Component.translatable("recursivecraft.msg.invalid_recipe").withStyle(ChatFormatting.RED));
+            return new SimpleError(
+                    IRecipeTransferError.Type.USER_FACING,
+                    Component.translatable("recursivecraft.msg.invalid_recipe").withStyle(ChatFormatting.RED)
+            );
         }
 
-        boolean isCtrlDown = Screen.hasControlDown();
+        if (Screen.hasControlDown()) {
+            if (!doTransfer) {
+                return null;
+            }
 
-        // === 逻辑一：递归合成 (接管逻辑) ===
-        // 触发条件：按住 Ctrl
-        if (isCtrlDown) {
-            if (!doTransfer) return null; // 检查通过，显示蓝色/绿色按钮
-
-            // 发送递归合成包
-            // [核心修改] 传入 recipe.getId()，实现"所见即所得"的指定配方合成
-            int craftAmount = maxTransfer ? 64 : 1;
-            PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(
-                    output.getItem(),
-                    craftAmount,
-                    recipe.getId() // <--- 关键修改：传递当前JEI展示的配方ID
-            ));
+            ItemStack displayedOutput = recipeSlots.getSlotViews(RecipeIngredientRole.OUTPUT).stream()
+                    .map(IRecipeSlotView::getDisplayedItemStack)
+                    .flatMap(Optional::stream)
+                    .filter(stack -> !stack.isEmpty())
+                    .findFirst()
+                    .orElse(output);
+            PacketHandler.CHANNEL.sendToServer(
+                    RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedOutput, maxTransfer)
+            );
             return null;
         }
 
-        // === 逻辑二：原版合成 (背包 / 工作台) ===
-        // 触发条件：未按 Ctrl，且容器是 InventoryMenu 或 CraftingMenu
         if (container instanceof InventoryMenu || container instanceof CraftingMenu) {
-
-            // 2.1 尺寸检查 (仅针对 2x2 的背包)
-            if (container instanceof InventoryMenu) {
-                if (!recipe.canCraftInDimensions(2, 2)) {
-                    Component warningText = Component.translatable("recursivecraft.msg.recipe_too_large")
-                            .withStyle(ChatFormatting.RED);
-                    return transferHelper.createUserErrorWithTooltip(warningText);
-                }
+            if (container instanceof InventoryMenu && !recipe.canCraftInDimensions(2, 2)) {
+                Component warningText = Component.translatable("recursivecraft.msg.recipe_too_large")
+                        .withStyle(ChatFormatting.RED);
+                return transferHelper.createUserErrorWithTooltip(warningText);
             }
 
-            // 2.2 材料检查 (通用)
             List<IRecipeSlotView> missingSlots = calculateMissingSlots(recipe, recipeSlots, player);
-
             if (!missingSlots.isEmpty()) {
                 return transferHelper.createUserErrorForMissingSlots(
                         Component.translatable("recursivecraft.msg.missing_ingredients").withStyle(ChatFormatting.RED),
@@ -111,26 +105,18 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                 );
             }
 
-            // 2.3 执行原版摆放
-            if (!doTransfer) return null;
+            if (!doTransfer) {
+                return null;
+            }
 
             Minecraft.getInstance().getConnection().send(
-                    new ServerboundPlaceRecipePacket(
-                            container.containerId,
-                            recipe,
-                            maxTransfer
-                    )
+                    new ServerboundPlaceRecipePacket(container.containerId, recipe, maxTransfer)
             );
-
-            return null;
         }
 
         return null;
     }
 
-    /**
-     * 计算缺失材料 (精准坐标映射版)
-     */
     private List<IRecipeSlotView> calculateMissingSlots(CraftingRecipe recipe, IRecipeSlotsView recipeSlots, Player player) {
         List<IRecipeSlotView> missingViews = new ArrayList<>();
         List<ItemStack> inventoryCopy = new ArrayList<>();
@@ -141,9 +127,9 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
         }
 
         List<Ingredient> requiredIngredients = new ArrayList<>();
-        for (Ingredient ing : recipe.getIngredients()) {
-            if (!ing.isEmpty()) {
-                requiredIngredients.add(ing);
+        for (Ingredient ingredient : recipe.getIngredients()) {
+            if (!ingredient.isEmpty()) {
+                requiredIngredients.add(ingredient);
             }
         }
 
@@ -155,7 +141,6 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
         }
 
         int checkCount = Math.min(requiredIngredients.size(), activeSlotViews.size());
-
         for (int i = 0; i < checkCount; i++) {
             Ingredient ingredient = requiredIngredients.get(i);
             IRecipeSlotView view = activeSlotViews.get(i);
@@ -180,19 +165,43 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
         private final Type type;
         private final Component message;
 
-        public SimpleError(Type type, Component message) {
+        private SimpleError(Type type, Component message) {
             this.type = type;
             this.message = message;
         }
 
         @Override
-        public Type getType() { return type; }
+        public Type getType() {
+            return type;
+        }
 
         @Override
-        public void showError(GuiGraphics graphics, int mouseX, int mouseY, IRecipeSlotsView recipeSlotsView, int recipeX, int recipeY) {
+        public void showError(
+                GuiGraphics graphics,
+                int mouseX,
+                int mouseY,
+                IRecipeSlotsView recipeSlotsView,
+                int recipeX,
+                int recipeY
+        ) {
             if (type == Type.USER_FACING) {
                 graphics.renderTooltip(Minecraft.getInstance().font, message, mouseX, mouseY);
             }
         }
+    }
+}
+
+final class RecursiveCraftTransferPackets {
+    private RecursiveCraftTransferPackets() {
+    }
+
+    static C2SExecuteCraftPacket createRecursivePacket(CraftingRecipe recipe, ItemStack displayedOutput, boolean maxTransfer) {
+        int craftAmount = maxTransfer ? 64 : 1;
+        return new C2SExecuteCraftPacket(
+                displayedOutput.getItem(),
+                craftAmount,
+                recipe.getId(),
+                new TargetOutputSpec(displayedOutput.getItem(), displayedOutput.getTag())
+        );
     }
 }

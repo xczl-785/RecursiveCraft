@@ -2,12 +2,16 @@ package xczl.recursivecraft.networking;
 
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.core.CraftingTaskExecutor;
+import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.function.Supplier;
 
@@ -15,32 +19,59 @@ public class C2SExecuteCraftPacket {
 
     private final Item targetItem;
     private final int amount;
-    private final ResourceLocation forcedRecipeId; // [新增] 指定配方ID
+    private final @Nullable ResourceLocation forcedRecipeId;
+    private final @Nullable TargetOutputSpec targetOutputSpec;
 
-    // 默认构造器 (给 GUI 使用，保持自动)
     public C2SExecuteCraftPacket(Item targetItem, int amount) {
-        this(targetItem, amount, null);
+        this(targetItem, amount, null, null);
     }
 
-    // 全参构造器 (给 JEI 使用，指定配方)
-    public C2SExecuteCraftPacket(Item targetItem, int amount, ResourceLocation forcedRecipeId) {
-        this.targetItem = (targetItem == null) ? Items.AIR : targetItem;
-        this.amount = (this.targetItem == Items.AIR) ? 0 : amount;
+    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable ResourceLocation forcedRecipeId) {
+        this(targetItem, amount, forcedRecipeId, null);
+    }
+
+    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable ResourceLocation forcedRecipeId,
+                                 @Nullable TargetOutputSpec targetOutputSpec) {
+        this.targetItem = targetItem == null ? Items.AIR : targetItem;
+        this.amount = this.targetItem == Items.AIR ? 0 : amount;
         this.forcedRecipeId = forcedRecipeId;
+        this.targetOutputSpec = targetOutputSpec;
     }
 
-    // 编码
+    public Item targetItem() {
+        return targetItem;
+    }
+
+    public int amount() {
+        return amount;
+    }
+
+    public @Nullable ResourceLocation forcedRecipeId() {
+        return forcedRecipeId;
+    }
+
+    public @Nullable TargetOutputSpec targetOutputSpec() {
+        return targetOutputSpec;
+    }
+
     public void encode(FriendlyByteBuf buf) {
         buf.writeId(BuiltInRegistries.ITEM, targetItem);
         buf.writeInt(amount);
-        // 写入 Optional 的 ResourceLocation
         buf.writeBoolean(forcedRecipeId != null);
         if (forcedRecipeId != null) {
             buf.writeResourceLocation(forcedRecipeId);
         }
+        buf.writeBoolean(targetOutputSpec != null);
+        if (targetOutputSpec != null) {
+            buf.writeId(BuiltInRegistries.ITEM, targetOutputSpec.item());
+            CompoundTag tag = targetOutputSpec.tag();
+            buf.writeBoolean(tag != null);
+            if (tag != null) {
+                buf.writeNbt(tag);
+            }
+        }
     }
 
-    // 解码
     public static C2SExecuteCraftPacket decode(FriendlyByteBuf buf) {
         Item item = buf.readById(BuiltInRegistries.ITEM);
         int amount = buf.readInt();
@@ -48,25 +79,45 @@ public class C2SExecuteCraftPacket {
         if (buf.readBoolean()) {
             recipeId = buf.readResourceLocation();
         }
-        return new C2SExecuteCraftPacket(item, amount, recipeId);
+
+        TargetOutputSpec targetOutputSpec = null;
+        if (buf.isReadable() && buf.readBoolean()) {
+            Item targetOutputItem = buf.readById(BuiltInRegistries.ITEM);
+            CompoundTag tag = null;
+            if (buf.readBoolean()) {
+                tag = buf.readNbt();
+            }
+            targetOutputSpec = new TargetOutputSpec(targetOutputItem, tag);
+        }
+
+        return new C2SExecuteCraftPacket(item, amount, recipeId, targetOutputSpec);
     }
 
-    // 处理
     public static void handle(C2SExecuteCraftPacket pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext ctx = ctxSupplier.get();
 
         ctx.queue(() -> {
             ServerPlayer player = (ServerPlayer) ctx.getPlayer();
-            if (player == null) return;
+            if (player == null) {
+                return;
+            }
+            if (hasConflictingTargetItem(pkt)) {
+                player.sendSystemMessage(Component.translatable("recursivecraft.msg.invalid_request"));
+                return;
+            }
 
-            // 调用核心执行器，传入配方ID
             CraftingTaskExecutor.tryExecute(
                     player,
                     pkt.targetItem,
                     pkt.amount,
                     pkt.forcedRecipeId,
-                    player::sendSystemMessage // 回调给玩家
+                    pkt.targetOutputSpec,
+                    player::sendSystemMessage
             );
         });
+    }
+
+    private static boolean hasConflictingTargetItem(C2SExecuteCraftPacket pkt) {
+        return pkt.targetOutputSpec != null && pkt.targetItem != pkt.targetOutputSpec.item();
     }
 }

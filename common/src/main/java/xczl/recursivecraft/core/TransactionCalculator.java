@@ -5,6 +5,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.data.CraftingTransaction;
 import xczl.recursivecraft.runtime.inventory.VirtualInventorySnapshot;
@@ -85,12 +86,18 @@ public class TransactionCalculator {
     /**
      * 计算合成事务 (支持强制指定首层配方)
      */
-    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, CraftingRecipe forcedRecipe) {
+    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, @Nullable CraftingRecipe forcedRecipe) {
+        return calculate(target, amount, isFinalTarget, forcedRecipe, null);
+    }
+
+    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget,
+                                         @Nullable CraftingRecipe forcedRecipe,
+                                         @Nullable MaterialKey desiredOutputKey) {
         CalcContext context = new CalcContext(snapshotPlayerInventory(), new HashSet<>());
         logCalculationStart(target, amount, forcedRecipe);
         uncraftableCache.clear();
 
-        AttemptResult result = calculateRecursive(target, amount, isFinalTarget, context, 1, forcedRecipe, null);
+        AttemptResult result = calculateRecursive(target, amount, isFinalTarget, context, 1, forcedRecipe, desiredOutputKey);
 
         RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
         return result.transaction();

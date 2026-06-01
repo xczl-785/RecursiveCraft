@@ -1,9 +1,9 @@
-# RecursiveCraft NBT 主题下一窗口转接指令
+# RecursiveCraft Phase 4A 运行时复验准备转接指令
 
 > 目标分支：`1.20.1`
 > 文档日期：2026-05-31
-> 当前定位：从 `Phase 3` 收口完成，切入 `Phase 4A`
-> 用途：供下一个窗口直接接手，不再重复整理上下文
+> 当前定位：`Phase 4A` 第一批代码与自动化验证已落地，下一窗口进入运行时复验准备 / 手工复验窗口
+> 用途：供下一个窗口直接接手 `JEI Ctrl` 运行时复验准备，不再误回到实现启动阶段
 
 ---
 
@@ -14,17 +14,18 @@
 1. [docs/architecture/NBT_总体方案决议.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/architecture/NBT_总体方案决议.md:1)
 2. [docs/architecture/NBT_实施路线图.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/architecture/NBT_实施路线图.md:1)
 3. [docs/reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md:1)
-4. [docs/plans/2026-05-31-target-output-nbt-design.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-design.md:1)
-5. [docs/plans/2026-05-31-target-output-nbt-implementation-plan.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-implementation-plan.md:1)
-6. [docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md:1)
-7. [docs/capabilities/recursive-craft-execution.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/capabilities/recursive-craft-execution.md:1)
+4. [docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md:1)
+5. [docs/capabilities/recursive-craft-execution.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/capabilities/recursive-craft-execution.md:1)
+6. [docs/plans/2026-05-31-target-output-nbt-design.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-design.md:1)
+7. [docs/plans/2026-05-31-target-output-nbt-implementation-plan.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-implementation-plan.md:1)
 8. [docs/README.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/README.md:1)
 
 说明：
 
 - 前三份文档用于恢复当前真相与阶段位置
-- 中间三份文档用于直接执行 `Phase 4A`
-- 最后两份文档用于恢复 capability 规则与文档入口
+- 第 4、5 份文档用于直接执行本轮运行时复验准备
+- 第 6、7 份文档用于在需要时回看设计边界与实现输入
+- 最后一份文档用于恢复文档入口
 
 ---
 
@@ -39,87 +40,100 @@
    - `Phase 2` 第一阶段运行时 NBT 主链
    - `Phase 3` 方案代码对照与主要桥接收口
 5. 当前接下来进入：
-   - `Phase 4A` 目标产物 NBT 主动指定
+   - `Phase 4A` 目标产物 NBT 主动指定的运行时复验准备与手工复验
 
 ---
 
 ## 三、当前阶段在整体规划中的位置
 
-当前状态不是“还在做 Phase 3”，而是：
+当前状态不是“还在做 `Phase 3`”或“还未开始 `Phase 4A` 实现”，而是：
 
 - `Phase 3` 的规划内容已经完成
-- 代码侧主要收口也已经完成
-- 下一窗口应视为正式进入 `Phase 4A` 实施窗口
+- `Phase 4A` 第一批代码与目标自动化验证已经完成
+- 下一窗口应视为正式进入 `Phase 4A` 运行时复验窗口
 
 但有一个前置提醒：
 
 - `Phase 2/3` 的手工验证记录仍然是剩余收口项
-- 若执行 `Phase 4A` 时需要严格遵守前置门槛，应优先补齐记录或至少同步建立可执行复验记录机制
+- `Phase 4A` 的真实运行时 `JEI Ctrl` 复验当前仍未执行完成
+- 在补齐这些记录前，不应宣称 `Phase 4A` 已整体收口
 
 ---
 
-## 四、下阶段任务内容
+## 四、当前已确认的运行时复验准备事实
 
-下一窗口的直接任务是：
+推荐平台：
 
-- **执行 `Phase 4A：后端契约 + JEI 递归入口`**
+1. 优先 `Forge`
+2. `Fabric` 作为回退路径
 
-按实施计划，优先顺序应为：
+当前环境中已验证成功的命令：
 
-1. 定义 `TargetOutputSpec`
-2. 扩展 `C2SExecuteCraftPacket`
-3. 扩展 `CraftingTaskExecutor`
-4. 扩展 `TransactionCalculator` 公开入口
-5. 接入 `RecursiveCraftTransferHandler`
-6. 补自动化测试
-7. 跑 `Phase 4A` 手工验证清单
-8. 文档写回
+```powershell
+java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft\.worktrees\backport-1.20.1 forge:configureClientLaunch
+java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft\.worktrees\backport-1.20.1 fabric:configureClientLaunch
+```
 
-必须遵守的核心约束：
+已确认事实：
+
+1. `forge:configureClientLaunch` 已成功
+2. `fabric:configureClientLaunch` 已成功
+3. 在当前环境中，应使用仓库根目录 wrapper jar + `GradleWrapperMain` 形式，不应把工作树内的 `.\gradlew` / `.\gradlew.bat` 作为首选入口
+4. 上述结论仅说明“运行时复验准备命令可执行”，不代表 gameplay 手工复验已经完成
+5. 当前仓库已补入 `recursivecraft:debug/handheld_crafter_red|blue` 作为默认 runtime verification fixture
+
+---
+
+## 五、手工复验场景分层
+
+正常 gameplay / `JEI Ctrl` 可达：
+
+1. `2.1` 旧路径不退化
+2. `2.2` JEI 展示变体 A 正确产出
+3. `2.3` JEI 展示变体 B 不误产出 A
+
+其中：
+
+1. `2.2 / 2.3` 的前提是存在“同一 `Item`、多个不同 NBT 输出变体”的 JEI 输出样例
+2. 当前默认样例为：
+   - `recursivecraft:debug/handheld_crafter_red`
+   - `recursivecraft:debug/handheld_crafter_blue`
+3. 若该样例在运行时未出现，应优先排查 recipe / serializer / JEI 装载，而不是直接判为执行链失败
+
+仅 synthetic / debug 可达：
+
+1. `2.4` 强制 `recipeId` 与目标身份冲突
+2. `2.5` `targetItem` 与 `TargetOutputSpec.item` 冲突
+
+组合验证：
+
+1. `2.6` 中的 `MISSING` 子场景可能通过 gameplay 或 debug 路径观察
+2. `2.6` 中的 `UNSUPPORTED` 子场景更应视为 synthetic / debug-path 复验
+3. 不要把 `2.4 / 2.5 / 2.6` 整体写成“普通 JEI Ctrl 点击流即可覆盖”
+
+---
+
+## 六、下一窗口的直接任务
+
+下一窗口的直接任务不是重新开做实现，而是：
+
+1. 复核 [docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md](e:/Program/RecursiveCraft/.worktrees/backport-1.20.1/docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md:1) 中的场景分层
+2. 先使用 `Forge` 跑运行时复验准备命令
+3. 若 `Forge` 受阻，再使用 `Fabric` 回退
+4. 先使用 `recursivecraft:debug/handheld_crafter_red|blue` 完成 `2.2 / 2.3`
+5. 仅在具备改包、注入或 debug harness 条件时再推进 `2.4 / 2.5 / 2.6`
+6. 任何写回都必须明确区分“已执行的 gameplay 复验”和“仅由 synthetic / debug 路径覆盖的场景”
+
+下一窗口必须继续遵守的边界：
 
 1. 不升级 `CraftingPlanner` 为 NBT 图
-2. 不顺手做命令增强版
-3. 不顺手做自定义 GUI 变体选择器
-4. 不碰外部存储
+2. 不顺手补做命令增强版或 GUI 选择器
+3. 不把“准备命令成功”写成“运行时复验已通过”
+4. 不把全部 checklist 项目都描述成正常 JEI 点击流
 
 ---
 
-## 五、下一窗口的工作模式
-
-下一窗口不要单线程硬推，必须继续采用当前已验证的推进模式：
-
-1. **主窗口负责调度**
-   - 负责控制阶段边界
-   - 负责校验实现是否仍与规划一致
-   - 负责整合测试、文档与 push
-
-2. **实施窗口独立推进**
-   - 使用受限写面
-   - 严格按 TDD
-   - 每轮只改一个明确子任务
-
-3. **Review 窗口独立审阅**
-   - 使用 `gpt-5.4`
-   - 只审当前未提交 diff
-   - findings-first
-
-4. **保持上下文的连续、隔离与纯粹**
-   - 连续：主窗口维护总体进度与文档真相
-   - 隔离：实施与 review 不混在同一条推理链
-   - 纯粹：每一轮只解决当前任务，不顺手扩张范围
-
-推荐执行节奏：
-
-1. 主窗口先读计划并锁定当前子任务
-2. 开实施窗口做该子任务
-3. 主窗口本地复跑最小相关测试
-4. 开 review 窗口审该轮 diff
-5. 主窗口修补 review finding
-6. 再做文档写回、commit、push
-
----
-
-## 六、远期规划
+## 七、远期规划
 
 当前远期规划已经明确，不要在 `Phase 4A` 中混入：
 
@@ -141,7 +155,7 @@
 
 ---
 
-## 七、当前仓库事实
+## 八、当前仓库事实
 
 当前远端分支：
 
@@ -154,18 +168,20 @@
 2. `58cda14`
    - `docs: plan target output nbt expansion`
 
-当前工作区应保持干净后再启动下一轮实施。
+当前工作区应保持干净后再启动下一轮运行时复验或写回。
 
 ---
 
-## 八、下一窗口启动时的直接指令
+## 九、下一窗口启动时的直接指令
 
 下一窗口启动后，请直接执行：
 
 1. 进入 `e:\Program\RecursiveCraft\.worktrees\backport-1.20.1`
 2. 按本文档第一节顺序阅读
-3. 以 `docs/plans/2026-05-31-target-output-nbt-implementation-plan.md` 为唯一实施计划基线
-4. 从 `Task 1: 定义目标输出契约对象` 开始
-5. 使用“主窗口调度 + 实施窗口 + review 窗口”模式推进
+3. 先执行本文件第四节中的 `forge:configureClientLaunch`
+4. 若 `Forge` 受阻，再执行 `fabric:configureClientLaunch`
+5. 先尝试拿到同一 `Item` 多 NBT JEI 输出样例，再推进 checklist `2.2 / 2.3`
+6. 只有在具备 synthetic / debug 手段时，才推进 checklist `2.4 / 2.5 / 2.6`
+7. 写回复验结果时，明确标注 `gameplay` 与 `synthetic-debug`，且不要宣称 `Phase 4A` 已整体完成
 
-不要在启动后重新讨论大方向，除非代码事实与现有文档出现直接冲突。
+不要在启动后回退到“从 `Task 1` 开始重新实现”；除非代码事实与现有文档出现直接冲突，否则应把重点放在运行时复验准备与证据补齐。

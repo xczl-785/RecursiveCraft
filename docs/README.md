@@ -16,11 +16,11 @@
 - `research/`
   - 调研、机制梳理、问题分析
 - `reviews/`
-  - 代码审阅类产物
-- `refactoring/`
-  - 既有重构记录与历史进展
+  - 当前仍在主动路径中的方案对照与评审产物
 - `capabilities/`
   - capability 体系文档
+- `废弃/`
+  - 已退出主动阅读路径的历史材料与退役记录
 
 ---
 
@@ -54,7 +54,25 @@
 
 ---
 
-## 四、评审窗口推荐阅读顺序
+## 四、Phase 4A 写回 / 验证窗口推荐阅读顺序
+
+如果目标是继续 `Phase 4A` 的目标产物身份主动指定写回、复验或收口，推荐阅读：
+
+1. `architecture/NBT_总体方案决议.md`
+2. `architecture/NBT_实施路线图.md`
+3. `plans/2026-05-31-target-output-nbt-implementation-plan.md`
+4. `plans/2026-05-31-phase4a-handoff.md`
+5. `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
+6. `capabilities/recursive-craft-execution.md`
+
+说明：
+
+- `Phase 4A` 验证窗口应先以 `phase4a-handoff` 与 checklist 中记录的 wrapper-jar launch 准备命令为准，不要默认回到工作树内 `.\gradlew` 入口
+- checklist 已明确区分正常 `JEI Ctrl` gameplay 场景与 synthetic / debug-only 场景，写回时应沿用该分层
+
+---
+
+## 五、评审窗口推荐阅读顺序
 
 如果目标是做实现后评审或方案对照，推荐阅读：
 
@@ -63,19 +81,20 @@
 3. `plans/2026-05-31-shared-inventory-abstraction-design.md`
 4. `plans/2026-05-31-nbt-phase1-implementation-plan.md`
 5. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
-6. `reviews/2026-05-31-NBT_Phase2_手工验证清单.md`
-7. `capabilities/capability-index.md`
+6. `capabilities/capability-index.md`
+
+如需查看历史代码审阅、旧 Phase 2 手工验证清单或退役重构进度，请转 `废弃/README.md`。
 
 ---
 
-## 五、当前核心文档
+## 六、当前核心文档
 
-### 5.1 架构与路线
+### 6.1 架构与路线
 
 - `architecture/NBT_总体方案决议.md`
 - `architecture/NBT_实施路线图.md`
 
-### 5.2 设计与实施
+### 6.2 设计与实施
 
 - `plans/2026-05-31-shared-inventory-abstraction-design.md`
 - `plans/2026-05-31-nbt-phase1-implementation-plan.md`
@@ -83,22 +102,31 @@
 - `plans/2026-05-31-target-output-nbt-implementation-plan.md`
 - `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
 - `plans/2026-05-31-phase4a-handoff.md`
+- `plans/2026-05-31-phase4a-debug-fixture-design.md`
+- `plans/2026-05-31-phase4a-debug-fixture-implementation-plan.md`
 
-### 5.3 调研与背景
+### 6.3 调研与背景
 
 - `research/NBT_支持调研报告.md`
 - `research/NBT_机制梳理与影响分析.md`
 - `research/存储支持调研报告.md`
 
-### 5.4 代码现状与历史
+### 6.4 当前评审与能力索引
 
-- `reviews/Code_Review_Report.md`
 - `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
-- `reviews/2026-05-31-NBT_Phase2_手工验证清单.md`
-- `refactoring/Refactoring_Progress.md`
+- `capabilities/capability-index.md`
+
+### 6.5 历史归档（按需）
+
+- `废弃/README.md`
 
 ---
 
-## 六、当前结论
+## 七、当前结论
 
-以当前文档集状态看，实施窗口已经不需要再自行组织上下文；只要按上面的推荐顺序读取，就可以直接进入第一阶段 NBT 方案实现。
+以当前文档集状态看，`Phase 2` 第一阶段实现与 `Phase 4A` 第一批目标产物身份实现都已有明确入口；当前需要优先注意的是：
+
+1. `Phase 4A` 自动化验证已具备固定命令与测试面
+2. `JEI Ctrl` 的真实运行时手工验证仍待完成
+3. 当前已提供 red / blue debug fixture 作为默认 runtime verification 样例
+4. 在手工复验补齐前，不应把 `Phase 4A` 写成“已完全完成”

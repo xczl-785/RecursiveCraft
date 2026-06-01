@@ -1,0 +1,42 @@
+{
+  "type": "recursivecraft:debug_tagged_result",
+  "group": "debug",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "recursivecraft:recursive_crafter"
+    },
+    {
+      "item": "minecraft:redstone_block"
+    }
+  ],
+  "result": {
+    "item": "recursivecraft:handheld_crafter",
+    "tag": {
+      "recursivecraft_debug": {
+        "variant": "red"
+      }
+    }
+  }
+}

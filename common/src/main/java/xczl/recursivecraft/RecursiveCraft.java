@@ -29,10 +29,7 @@ public class RecursiveCraft {
         ModConfig.loadConfig();
 
         // 2. 初始化所有注册表
-        ModBlocks.register();
-        ModItems.register();
-        ModMenus.register();
-        ModTabs.register();
+        registerContent();
 
         // 3. 注册网络
         PacketHandler.register();
@@ -56,6 +53,14 @@ public class RecursiveCraft {
         EnvExecutor.runInEnv(Env.CLIENT, () -> RecursiveCraftClient::init);
 
         LOGGER.info("RecursiveCraft initialized!");
+    }
+
+    static void registerContent() {
+        ModBlocks.register();
+        ModItems.register();
+        ModMenus.register();
+        ModTabs.register();
+        ModRecipeSerializers.register();
     }
 
     public static ResourceLocation id(String path) {
