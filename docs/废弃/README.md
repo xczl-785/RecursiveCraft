@@ -9,6 +9,20 @@
 
 当前已归档材料：
 
+- `plans/`
+  - 历史设计方案、实施计划、阶段 handoff 与旧版验证清单。
+  - 当前真相已提升到 `docs/HANDOFF.md`、`docs/Phase4A_运行时验证.md` 与 `docs/architecture/` 下的标准文档；此目录仅保留历史过程与原始计划输入。
+  - 当前包含：
+    - `2026-05-31-shared-inventory-abstraction-design.md`
+    - `2026-05-31-nbt-phase1-implementation-plan.md`
+    - `2026-05-31-target-output-nbt-design.md`
+    - `2026-05-31-target-output-nbt-implementation-plan.md`
+    - `2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
+    - `2026-05-31-phase4a-handoff.md`
+    - `2026-05-31-phase4a-debug-fixture-design.md`
+    - `2026-05-31-phase4a-debug-fixture-implementation-plan.md`
+    - `2026-06-01-machine-transfer-handoff.md`
+
 - `reviews/Code_Review_Report.md`
   - 早期代码审阅报告，保留作历史背景，不再作为当前核心阅读入口。
 - `reviews/2026-05-31-NBT_Phase2_手工验证清单.md`

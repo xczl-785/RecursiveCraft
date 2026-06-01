@@ -5,128 +5,110 @@
 
 ---
 
-## 一、分类说明
+## 一、当前主动路径
 
 `docs/` 目录当前按用途分为以下类别：
 
+- `README.md`
+  - 主入口与阅读路由
+- `HANDOFF.md`
+  - 当前转接、阶段状态与直接任务
 - `architecture/`
-  - 高层决议、阶段边界、实施路线图
-- `plans/`
-  - 面向实现的正式设计与实施计划
-- `research/`
-  - 调研、机制梳理、问题分析
-- `reviews/`
-  - 当前仍在主动路径中的方案对照与评审产物
+  - 高层决议、共享架构、实施路线图、存储适配路线
+- `Phase4A_运行时验证.md`
+  - 当前 `Phase 4A` 正式复验文档
 - `capabilities/`
   - capability 体系文档
+- `reviews/`
+  - 当前仍保留在主动路径中的方案-代码对照材料
+- `research/`
+  - 调研、机制梳理、背景证据
 - `废弃/`
   - 已退出主动阅读路径的历史材料与退役记录
 
----
-
-## 二、实施窗口推荐阅读顺序
-
-如果目标是直接进入 NBT 第一阶段实现，推荐按以下顺序阅读：
-
-1. `architecture/NBT_总体方案决议.md`
-2. `architecture/NBT_实施路线图.md`
-3. `plans/2026-05-31-shared-inventory-abstraction-design.md`
-4. `plans/2026-05-31-nbt-phase1-implementation-plan.md`
-5. `research/NBT_机制梳理与影响分析.md`
-
-说明：
-
-- 前三份文档用于确定目标、边界与设计输入
-- 第四份文档用于直接指导实施窗口分任务落地
-- 第五份文档用于补运行机制与影响背景
+`docs/plans/` 已退出主动路径；原计划型文档已统一迁入 `docs/废弃/plans/` 作为历史档案。
 
 ---
 
-## 三、规划窗口推荐阅读顺序
+## 二、Agent-First 阅读顺序
 
-如果目标是继续扩展方案、讨论后续阶段或评估外部存储路线，推荐阅读：
+### 2.1 继续当前 NBT / `Phase 4A` 主线
 
-1. `architecture/NBT_总体方案决议.md`
-2. `architecture/NBT_实施路线图.md`
-3. `research/NBT_支持调研报告.md`
-4. `research/存储支持调研报告.md`
-5. `research/NBT_机制梳理与影响分析.md`
-
----
-
-## 四、Phase 4A 写回 / 验证窗口推荐阅读顺序
-
-如果目标是继续 `Phase 4A` 的目标产物身份主动指定写回、复验或收口，推荐阅读：
-
-1. `architecture/NBT_总体方案决议.md`
-2. `architecture/NBT_实施路线图.md`
-3. `plans/2026-05-31-target-output-nbt-implementation-plan.md`
-4. `plans/2026-05-31-phase4a-handoff.md`
-5. `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
+1. `README.md`
+2. `HANDOFF.md`
+3. `architecture/NBT_总体方案决议.md`
+4. `architecture/NBT_实施路线图.md`
+5. `architecture/共享库存抽象层.md`
 6. `capabilities/recursive-craft-execution.md`
+7. `Phase4A_运行时验证.md`
 
-说明：
-
-- `Phase 4A` 验证窗口应先以 `phase4a-handoff` 与 checklist 中记录的 wrapper-jar launch 准备命令为准，不要默认回到工作树内 `.\gradlew` 入口
-- checklist 已明确区分正常 `JEI Ctrl` gameplay 场景与 synthetic / debug-only 场景，写回时应沿用该分层
-
----
-
-## 五、评审窗口推荐阅读顺序
-
-如果目标是做实现后评审或方案对照，推荐阅读：
+### 2.2 规划后续存储适配
 
 1. `architecture/NBT_总体方案决议.md`
 2. `architecture/NBT_实施路线图.md`
-3. `plans/2026-05-31-shared-inventory-abstraction-design.md`
-4. `plans/2026-05-31-nbt-phase1-implementation-plan.md`
-5. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
-6. `capabilities/capability-index.md`
+3. `architecture/共享库存抽象层.md`
+4. `architecture/存储支持与适配路线图.md`
+5. `capabilities/crafting-interaction-surfaces.md`
+6. `research/存储支持调研报告.md`
 
-如需查看历史代码审阅、旧 Phase 2 手工验证清单或退役重构进度，请转 `废弃/README.md`。
+### 2.3 回看证据与背景
+
+1. `architecture/NBT_总体方案决议.md`
+2. `architecture/NBT_实施路线图.md`
+3. `architecture/共享库存抽象层.md`
+4. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
+5. `research/NBT_支持调研报告.md`
+6. `research/NBT_机制梳理与影响分析.md`
+
+如需查看历史计划、旧 handoff、旧实现计划或历史验证材料，请转 `废弃/README.md`。
 
 ---
 
-## 六、当前核心文档
+## 三、当前核心文档
 
-### 6.1 架构与路线
+### 3.1 架构与路线
 
 - `architecture/NBT_总体方案决议.md`
 - `architecture/NBT_实施路线图.md`
+- `architecture/共享库存抽象层.md`
+- `architecture/存储支持与适配路线图.md`
 
-### 6.2 设计与实施
+### 3.2 转接与运行时验证
 
-- `plans/2026-05-31-shared-inventory-abstraction-design.md`
-- `plans/2026-05-31-nbt-phase1-implementation-plan.md`
-- `plans/2026-05-31-target-output-nbt-design.md`
-- `plans/2026-05-31-target-output-nbt-implementation-plan.md`
-- `plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
-- `plans/2026-05-31-phase4a-handoff.md`
-- `plans/2026-05-31-phase4a-debug-fixture-design.md`
-- `plans/2026-05-31-phase4a-debug-fixture-implementation-plan.md`
+- `HANDOFF.md`
+- `Phase4A_运行时验证.md`
 
-### 6.3 调研与背景
+### 3.3 能力文档
+
+- `capabilities/capability-index.md`
+- `capabilities/recursive-craft-execution.md`
+- `capabilities/crafting-interaction-surfaces.md`
+- `capabilities/crafting-planning-engine.md`
+
+### 3.4 调研与背景
 
 - `research/NBT_支持调研报告.md`
 - `research/NBT_机制梳理与影响分析.md`
 - `research/存储支持调研报告.md`
 
-### 6.4 当前评审与能力索引
+### 3.5 当前评审
 
 - `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
-- `capabilities/capability-index.md`
 
-### 6.5 历史归档（按需）
+### 3.6 历史归档（按需）
 
 - `废弃/README.md`
 
 ---
 
-## 七、当前结论
+## 四、当前结论
 
-以当前文档集状态看，`Phase 2` 第一阶段实现与 `Phase 4A` 第一批目标产物身份实现都已有明确入口；当前需要优先注意的是：
+当前应按以下结论理解仓库文档状态：
 
-1. `Phase 4A` 自动化验证已具备固定命令与测试面
-2. `JEI Ctrl` 的真实运行时手工验证仍待完成
-3. 当前已提供 red / blue debug fixture 作为默认 runtime verification 样例
-4. 在手工复验补齐前，不应把 `Phase 4A` 写成“已完全完成”
+1. `1.20.1` 是当前真实主线，不再需要从计划文档恢复这个事实。
+2. `Phase 2` 第一阶段运行时 NBT 主链已是当前实现真相。
+3. `Phase 4A` 的代码与自动化验证已到位，但真实运行时手工复验仍待完成。
+4. 当前默认 runtime verification 样例是 red / blue debug fixture。
+5. 官方存储适配路线已经提升为架构文档：
+   - 先方块模式相邻原版容器
+   - 后第三方存储接口适配

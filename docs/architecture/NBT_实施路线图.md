@@ -161,6 +161,10 @@
 
 - 已完成
 
+当前 `Phase 1` 的正式架构沉淀文档为：
+
+- `docs/architecture/共享库存抽象层.md`
+
 ---
 
 ## 七、Phase 2：第一阶段运行时 NBT 方案落地
@@ -331,8 +335,8 @@ Phase 2 第一阶段的真实执行原子性要求限定为：
 
 当前已新增正式子方案：
 
-- `docs/plans/2026-05-31-target-output-nbt-design.md`
-- `docs/plans/2026-05-31-target-output-nbt-implementation-plan.md`
+- `docs/HANDOFF.md`
+- `docs/Phase4A_运行时验证.md`
 
 当前已进入的首批落地子项：
 
@@ -343,6 +347,11 @@ Phase 2 第一阶段的真实执行原子性要求限定为：
    - `JEI Ctrl` 递归构包已携带 `recipeId + TargetOutputSpec`
    - 自动化验证已覆盖包体、执行器、计算器与 JEI 构包
    - 真实运行时 JEI / gameplay 手工验证仍待完成
+
+当前 `Phase 4A` 的主动文档入口为：
+
+- `docs/Phase4A_运行时验证.md`
+- `docs/HANDOFF.md`
 
 ### 9.3 不做什么
 
@@ -438,6 +447,10 @@ Phase 2 第一阶段的真实执行原子性要求限定为：
 2. 第三方存储兼容
 3. planner 是否需要局部感知 NBT
 
+其中存储适配路线的当前正式写法见：
+
+- `docs/architecture/存储支持与适配路线图.md`
+
 ### 12.3 尚未展开为正式子方案的内容
 
 这些还需要单独规划后才能推进：
@@ -486,5 +499,7 @@ Phase 2 第一阶段的真实执行原子性要求限定为：
 
 1. `Phase 4A` 完成真实运行时验证前，不得宣称“目标产物 NBT 主动指定”已经整体完成
 2. 外部存储路线坚持“先原版相邻容器，再第三方存储网络”的推进顺序
+
+当前转接与复验时，以 `docs/HANDOFF.md` 与 `docs/Phase4A_运行时验证.md` 为主动路径，不再依赖计划目录中的 handoff 或 checklist。
 
 除上述两点外，其余内容当前均按本路线图默认推荐继续推进。

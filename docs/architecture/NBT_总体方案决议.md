@@ -31,6 +31,13 @@
    - 先原版相邻容器
    - 后第三方存储网络
 
+上述共享库存架构与存储适配路线的当前正式写法，分别以：
+
+- `docs/architecture/共享库存抽象层.md`
+- `docs/architecture/存储支持与适配路线图.md`
+
+为准。
+
 ---
 
 ## 二、目标分层
@@ -113,6 +120,10 @@
 
 - 当前第一阶段运行时 NBT 方案
 - 未来可能的外部存储扩展
+
+该层的当前正式说明见：
+
+- `docs/architecture/共享库存抽象层.md`
 
 #### 第三层：运行时精确执行层
 
@@ -360,19 +371,25 @@
 2. 按固定清单完成真实运行时 JEI / gameplay 复验
 3. 仅在手工复验补齐后，再决定是否宣布 `Phase 4A` 收口并转入下一扩展项
 
+当前主动使用的转接与复验文档为：
+
+- `docs/HANDOFF.md`
+- `docs/Phase4A_运行时验证.md`
+
 ---
 
 ## 九、相关文档
 
 当前与本决议直接相关的文档包括：
 
+- `docs/architecture/NBT_实施路线图.md`
+- `docs/architecture/共享库存抽象层.md`
+- `docs/architecture/存储支持与适配路线图.md`
+- `docs/capabilities/recursive-craft-execution.md`
+- `docs/Phase4A_运行时验证.md`
+- `docs/HANDOFF.md`
 - `docs/research/NBT_支持调研报告.md`
 - `docs/research/NBT_机制梳理与影响分析.md`
-- `docs/architecture/NBT_实施路线图.md`
-- `docs/plans/2026-05-31-shared-inventory-abstraction-design.md`
-- `docs/plans/2026-05-31-target-output-nbt-implementation-plan.md`
-- `docs/plans/2026-05-31-target-output-nbt-phase4a-manual-verification-checklist.md`
-- `docs/capabilities/recursive-craft-execution.md`
 
 ---
 

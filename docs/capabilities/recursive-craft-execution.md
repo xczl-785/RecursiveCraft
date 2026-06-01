@@ -153,9 +153,11 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
   - debug fixture recipe / serializer 的 tagged output 与 planner 成本约束
   - debug fixture 在执行器 / JEI 测试中的 red/blue sibling identity 路径
 - 固定验证命令：
-  - `java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain :common:test --tests "xczl.recursivecraft.runtime.material.TargetOutputSpecTest" --tests "xczl.recursivecraft.networking.C2SExecuteCraftPacketTest" --tests "xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest" --tests "xczl.recursivecraft.core.TransactionCalculatorNbtTest" --tests "xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest"`
+  - `java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft :common:test --tests "xczl.recursivecraft.runtime.material.TargetOutputSpecTest" --tests "xczl.recursivecraft.networking.C2SExecuteCraftPacketTest" --tests "xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest" --tests "xczl.recursivecraft.core.TransactionCalculatorNbtTest" --tests "xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest" --tests "xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest" --tests "xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest"`
 - 真实运行时待验证：
   - `JEI Ctrl` gameplay 端到端手工复验仍未完成，当前不能据此宣称 `Phase 4A` 整体完成
+- 当前主动复验文档：
+  - `docs/Phase4A_运行时验证.md`
 
 ---
 
@@ -186,4 +188,4 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 
 ## Archive Pointer
 
-- None
+- 历史实施计划与旧 handoff 已迁入 `docs/废弃/plans/`
