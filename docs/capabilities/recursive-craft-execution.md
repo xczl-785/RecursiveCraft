@@ -18,7 +18,7 @@
   - 指定目标产物身份时，成功判定是否仍按规范化后的目标身份而非仅按 `Item` 数量
   - 运行时库存模型是否仍以 `MaterialKey` 为正式身份
   - 正式执行是否仍经 `InventoryView.planExecution()/commitExecution()`
-- **last_verified**: 2026-05-31
+- **last_verified**: 2026-06-02
 
 ---
 
@@ -154,8 +154,15 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
   - debug fixture 在执行器 / JEI 测试中的 red/blue sibling identity 路径
 - 固定验证命令：
   - `java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft :common:test --tests "xczl.recursivecraft.runtime.material.TargetOutputSpecTest" --tests "xczl.recursivecraft.networking.C2SExecuteCraftPacketTest" --tests "xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest" --tests "xczl.recursivecraft.core.TransactionCalculatorNbtTest" --tests "xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest" --tests "xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest" --tests "xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest"`
-- 真实运行时待验证：
-  - `JEI Ctrl` gameplay 端到端手工复验仍未完成，当前不能据此宣称 `Phase 4A` 整体完成
+  - `./gradlew --no-daemon --console=plain :common:test --tests 'xczl.recursivecraft.runtime.material.TargetOutputSpecTest' --tests 'xczl.recursivecraft.networking.C2SExecuteCraftPacketTest' --tests 'xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest' --tests 'xczl.recursivecraft.core.TransactionCalculatorNbtTest' --tests 'xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest' --tests 'xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest' --tests 'xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest'`
+- 当前工作树于 `2026-06-01` 已重新验证：
+  - 已恢复标准 `gradlew` / `gradle-wrapper.jar`
+  - 固定自动化矩阵重跑通过
+  - `./gradlew --no-daemon --console=plain forge:configureClientLaunch` 重跑通过
+- 真实运行时证据：
+  - `2026-06-02` 已在 Forge runtime 中通过 `debug/handheld_crafter_red|blue` 样例观察到真实产物保留 `recursivecraft_debug.variant = "red"|"blue"`，说明 `JEI Ctrl -> TargetOutputSpec -> resolvedOutputs` 的关键身份链路已闭合
+- 当前剩余非 blocker 验证项：
+  - `2.4 / 2.5 / 2.6` 仍主要保留在 synthetic-debug / 组合验证范围
 - 当前主动复验文档：
   - `docs/Phase4A_运行时验证.md`
 

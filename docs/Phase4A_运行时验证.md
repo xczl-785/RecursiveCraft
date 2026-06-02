@@ -2,7 +2,7 @@
 
 > 目标分支：`1.20.1`
 > 适用阶段：`Phase 4A`
-> 文档日期：2026-06-01
+> 文档日期：2026-06-02
 > 用途：作为“目标产物身份主动指定”当前正式复验文档
 
 ---
@@ -58,11 +58,24 @@
 java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft :common:test --tests "xczl.recursivecraft.runtime.material.TargetOutputSpecTest" --tests "xczl.recursivecraft.networking.C2SExecuteCraftPacketTest" --tests "xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest" --tests "xczl.recursivecraft.core.TransactionCalculatorNbtTest" --tests "xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest" --tests "xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest" --tests "xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest"
 ```
 
+当前仓库已恢复标准 Gradle wrapper，Unix-like 环境可直接使用：
+
+```bash
+./gradlew --no-daemon --console=plain :common:test --tests 'xczl.recursivecraft.runtime.material.TargetOutputSpecTest' --tests 'xczl.recursivecraft.networking.C2SExecuteCraftPacketTest' --tests 'xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest' --tests 'xczl.recursivecraft.core.TransactionCalculatorNbtTest' --tests 'xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest' --tests 'xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest' --tests 'xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest'
+```
+
 运行时复验准备命令：
 
 ```powershell
 java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft forge:configureClientLaunch
 java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft forge:runClient
+```
+
+Unix-like 环境可直接使用：
+
+```bash
+./gradlew --no-daemon --console=plain forge:configureClientLaunch
+./gradlew --no-daemon --console=plain forge:runClient
 ```
 
 回退路径：
@@ -116,8 +129,8 @@ java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.
 | 编号 | 场景 | 到达方式 | 自动化状态 | 手工 / 集成状态 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `2.1` | 旧路径不退化 | gameplay 抽样可达 | 已覆盖 | 可选抽样 | 无 `TargetOutputSpec` 时保持旧语义 |
-| `2.2` | JEI 展示变体 A 正确产出 | gameplay 可达 | 部分覆盖 | 待完成 | 自动化已覆盖构包与 identity 路径，真实产出仍待运行时验证 |
-| `2.3` | JEI 展示变体 B 不误产出 A | gameplay 可达 | 部分覆盖 | 待完成 | 自动化已覆盖 red/blue sibling identity，不等于 gameplay 已闭环 |
+| `2.2` | JEI 展示变体 A 正确产出 | gameplay 可达 | 部分覆盖 | 已补证据 | 已取得运行时证据：背包实际产物保留 `recursivecraft_debug.variant`，与 JEI 当前展示变体对应 |
+| `2.3` | JEI 展示变体 B 不误产出 A | gameplay 可达 | 部分覆盖 | 已补证据 | 已取得运行时证据：同一 `Item` 的 red / blue 两个目标身份在真实运行时未被压平，实际产物可区分 |
 | `2.4` | `recipeId` 与目标身份冲突不得误判成功 | synthetic-debug | 已覆盖核心判定 | 待完成 | 不是普通 JEI 点击流 |
 | `2.5` | `targetItem` 与 `TargetOutputSpec.item` 冲突 | synthetic-debug | 已覆盖 | 待完成 | 服务端应直接拒绝且不进入主链 |
 | `2.6` | `MISSING` 与 `UNSUPPORTED` 区分 | 组合场景 | 已覆盖 | 待完成 | 不应写成“普通 JEI Ctrl 点击即可完整覆盖” |
@@ -138,6 +151,14 @@ java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.
 8. 是否通过
 9. 异常说明
 
+### 7.1 当前已记录结果
+
+| 日期 | 提交号 | 场景编号 | 到达方式 | 样例 | 预期结果 | 实际结果 | 是否通过 | 异常说明 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `2026-06-01` | `46d6a9d` | 固定自动化矩阵 | `synthetic-debug` | `TargetOutputSpecTest`、`C2SExecuteCraftPacketTest`、`CraftingTaskExecutorTargetOutputTest`、`TransactionCalculatorNbtTest`、`RecursiveCraftTransferHandlerTest`、`DebugTaggedResultRecipeTest`、`DefaultMaterialMatcherTest` | 固定矩阵可在当前工作树重跑通过 | 已使用恢复后的标准 wrapper 在当前工作树重跑，`BUILD SUCCESSFUL` | 通过 | 运行前恢复了 `gradlew` / `gradle-wrapper.jar`，否则仓库无法直接执行固定命令 |
+| `2026-06-01` | `46d6a9d` | 运行时复验准备 | `synthetic-debug` | `forge:configureClientLaunch` | Forge 客户端启动准备成功 | `forge:configureClientLaunch` 返回 `BUILD SUCCESSFUL` | 通过 | 仅证明启动准备可执行，不等于已完成真实 gameplay / JEI 手工复验 |
+| `2026-06-02` | `46d6a9d` | `2.2 / 2.3` | `gameplay` | `recursivecraft:debug/handheld_crafter_blue`、`recursivecraft:debug/handheld_crafter_red` | JEI 当前展示 blue / red 时，递归执行的真实产物保留对应目标身份 | 用户在 Forge runtime 中通过 `/data get entity @p Inventory` 观测到两个 `recursivecraft:handheld_crafter` 分别携带 `recursivecraft_debug.variant = "blue"` 与 `"red"` | 通过 | 当前证据用于闭合 `Phase 4A` 关键 runtime 身份链路；现有 debug log 仍仅按 `Item` 名称打印，不能单独区分 red / blue |
+
 ---
 
 ## 八、收口边界
@@ -148,3 +169,10 @@ java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.
 2. `2.2 / 2.3` 的真实运行时证据已补齐
 3. 若补做 `2.4 / 2.5 / 2.6`，写回时已明确其到达方式
 4. 写回没有把 shipped debug fixture 误写成正式玩法承诺
+
+当前状态：
+
+- 条件 `1 / 2 / 4` 已满足
+- `2.4 / 2.5 / 2.6` 仍保留在 synthetic-debug / 组合验证范围，但它们不是当前 `Phase 4A` 关键 runtime 身份链路的剩余 blocker
+
+因此当前可将 `Phase 4A` 写为：**关键 runtime 证据已补齐，可按当前范围收口**。

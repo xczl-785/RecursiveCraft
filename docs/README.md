@@ -32,7 +32,7 @@
 
 ## 二、Agent-First 阅读顺序
 
-### 2.1 继续当前 NBT / `Phase 4A` 主线
+### 2.1 查看已收口的 NBT 主线
 
 1. `README.md`
 2. `HANDOFF.md`
@@ -41,6 +41,7 @@
 5. `architecture/共享库存抽象层.md`
 6. `capabilities/recursive-craft-execution.md`
 7. `Phase4A_运行时验证.md`
+8. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
 
 ### 2.2 规划后续存储适配
 
@@ -56,9 +57,8 @@
 1. `architecture/NBT_总体方案决议.md`
 2. `architecture/NBT_实施路线图.md`
 3. `architecture/共享库存抽象层.md`
-4. `reviews/2026-05-31-NBT_Phase3_方案与代码对照报告.md`
-5. `research/NBT_支持调研报告.md`
-6. `research/NBT_机制梳理与影响分析.md`
+4. `research/NBT_支持调研报告.md`
+5. `research/NBT_机制梳理与影响分析.md`
 
 如需查看历史计划、旧 handoff、旧实现计划或历史验证材料，请转 `废弃/README.md`。
 
@@ -107,7 +107,7 @@
 
 1. `1.20.1` 是当前真实主线，不再需要从计划文档恢复这个事实。
 2. `Phase 2` 第一阶段运行时 NBT 主链已是当前实现真相。
-3. `Phase 4A` 的代码与自动化验证已到位，但真实运行时手工复验仍待完成。
+3. `Phase 4A` 的关键 runtime 身份链路证据已补齐，当前 NBT 主线可按当前范围收口。
 4. 当前默认 runtime verification 样例是 red / blue debug fixture。
 5. 官方存储适配路线已经提升为架构文档：
    - 先方块模式相邻原版容器
