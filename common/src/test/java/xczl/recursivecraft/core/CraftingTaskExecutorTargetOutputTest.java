@@ -5,6 +5,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -13,6 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeManager;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -259,6 +261,50 @@ class CraftingTaskExecutorTargetOutputTest {
 
         assertFalse(ok);
         assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.invalid_request")));
+    }
+
+    @Test
+    void tryExecute_shouldNotSilentlyFallbackWhenForcedRecipeIsSpecial() throws Exception {
+        CraftingRecipe fallbackRecipe = mockRecipe(
+                new ItemStack(Items.STICK),
+                ingredientOf(new ItemStack(Items.OAK_LOG)),
+                "test:fallback_stick"
+        );
+        CraftingRecipe specialRecipe = mockRecipe(
+                new ItemStack(Items.STICK),
+                ingredientOf(new ItemStack(Items.BIRCH_LOG)),
+                "test:special_stick"
+        );
+        when(specialRecipe.isSpecial()).thenReturn(true);
+
+        setPlanningResult(
+                Map.of(Items.STICK, fallbackRecipe),
+                Map.of(Items.STICK, 1.0d, Items.OAK_LOG, 1.0d),
+                Map.of(Items.STICK, List.of(fallbackRecipe))
+        );
+
+        RecipeManager recipeManager = mock(RecipeManager.class);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
+                .when(recipeManager).byKey(new ResourceLocation("test:special_stick"));
+        ServerLevel level = mock(ServerLevel.class);
+        when(level.getRecipeManager()).thenReturn(recipeManager);
+
+        ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG)));
+        when(player.level()).thenReturn(level);
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(
+                player,
+                Items.STICK,
+                1,
+                new ResourceLocation("test:special_stick"),
+                null,
+                messages::add
+        );
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.invalid_recipe")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_success")));
     }
 
     private static ServerPlayer mockPlayer(Inventory inventory) {

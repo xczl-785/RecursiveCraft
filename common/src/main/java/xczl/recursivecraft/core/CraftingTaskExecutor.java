@@ -64,6 +64,10 @@ public class CraftingTaskExecutor {
         }
 
         CraftingRecipe usedRecipe = resolveRecipe(player, targetItem, forcedRecipeId);
+        if (forcedRecipeId != null && usedRecipe == null) {
+            msgSender.accept(Component.translatable("recursivecraft.msg.invalid_recipe"));
+            return false;
+        }
         CraftingTransaction transaction = calculateTransaction(player, targetItem, amount, forcedRecipeId, usedRecipe, desiredOutputKey);
 
         NetChanges netChanges = splitNetChanges(transaction, desiredOutputKey);
@@ -120,19 +124,16 @@ public class CraftingTaskExecutor {
     }
 
     private static CraftingRecipe resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
-        CraftingRecipe usedRecipe = null;
         if (forcedRecipeId != null) {
             Optional<? extends Recipe<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
             if (opt.isPresent() && opt.get() instanceof CraftingRecipe cr) {
                 if (!cr.isSpecial() && cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
-                    usedRecipe = cr;
+                    return cr;
                 }
             }
+            return null;
         }
-        if (usedRecipe == null) {
-            usedRecipe = CraftingPlanner.getInstance().getResult().getPathMemo().get(targetItem);
-        }
-        return usedRecipe;
+        return CraftingPlanner.getInstance().getResult().getPathMemo().get(targetItem);
     }
 
     private static CraftingTransaction calculateTransaction(ServerPlayer player, Item targetItem, int amount,
