@@ -28,6 +28,10 @@ configurations {
 }
 
 dependencies {
+    def localJeiApi = file("local-libs/jei-1.20.1-forge-api-15.20.0.121.jar")
+    def localJeiRuntime = file("local-libs/jei-1.20.1-forge-15.20.0.121.jar")
+    def localModsDir = file("local-mods")
+
     forge "net.minecraftforge:forge:${rootProject.forge_version}"
     // Remove the next line if you don't want to depend on the API
     modApi "dev.architectury:architectury-forge:${rootProject.architectury_version}"
@@ -44,9 +48,23 @@ dependencies {
     shadowCommon 'com.belerweb:pinyin4j:2.5.1'
 
     // [新增] JEI Forge 依赖
-    modCompileOnly "mezz.jei:jei-1.20.1-forge-api:15.2.0.27"
-    // 开发环境运行时加载 JEI
-    modLocalRuntime "mezz.jei:jei-1.20.1-forge:15.2.0.27"
+    if (localJeiApi.exists()) {
+        modCompileOnly files(localJeiApi)
+    } else {
+        modCompileOnly "mezz.jei:jei-1.20.1-forge-api:15.2.0.27"
+    }
+
+    if (localJeiRuntime.exists()) {
+        // 本地 jar 可规避远端 Maven/TLS 问题，同时保留仓库默认可构建性
+        modLocalRuntime files(localJeiRuntime)
+    } else {
+        modLocalRuntime "mezz.jei:jei-1.20.1-forge:15.2.0.27"
+    }
+
+    if (localModsDir.exists()) {
+        // 外部测试模组通过本地 runtime 依赖接入，让 Loom 在 dev runtime 中先完成 remap
+        modLocalRuntime fileTree(dir: localModsDir, include: ["*.jar"])
+    }
 }
 
 processResources {

@@ -344,6 +344,43 @@ class CraftingTaskExecutorTargetOutputTest {
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.invalid_recipe")));
     }
 
+    @Test
+    void tryExecute_shouldPrintFriendlyMaterialNamesInsteadOfRawMaterialKey() throws Exception {
+        ItemStack namedOutput = new ItemStack(Items.STICK);
+        namedOutput.setHoverName(Component.literal("Crimson Debug Stick"));
+        CraftingRecipe recipe = mockRecipe(
+                namedOutput,
+                ingredientOf(new ItemStack(Items.RED_DYE)),
+                "test:red_dye_stick"
+        );
+        setPlanningResult(
+                Map.of(Items.STICK, recipe),
+                Map.of(Items.STICK, 1.0d, Items.RED_DYE, 1.0d),
+                Map.of(Items.STICK, List.of(recipe))
+        );
+
+        ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.RED_DYE)));
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.STICK, 1, null, null, messages::add);
+
+        assertTrue(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains(Items.RED_DYE.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("Crimson Debug Stick")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("MaterialKey{")));
+    }
+
+    @Test
+    void describeMaterialKeyForPlayer_shouldSummarizeRelevantNbtFields() {
+        MaterialKey key = new DefaultMaterialIdentityNormalizer().normalize(stackWithVariant(Items.STICK, "red-output")).key();
+
+        String display = CraftingTaskExecutor.describeMaterialKeyForPlayer(key);
+
+        assertTrue(display.contains(Items.STICK.getDescription().getString()));
+        assertTrue(display.contains("variant=red-output"));
+        assertFalse(display.contains("MaterialKey{"));
+    }
+
     private static ServerPlayer mockPlayer(Inventory inventory) {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getInventory()).thenReturn(inventory);

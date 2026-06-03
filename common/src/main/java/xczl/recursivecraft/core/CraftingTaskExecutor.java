@@ -20,7 +20,9 @@ import xczl.recursivecraft.runtime.material.NormalizationKind;
 import xczl.recursivecraft.runtime.material.NormalizationResult;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -104,7 +106,7 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        printDebugLog(msgSender, netChanges.needs, netChanges.provides);
+        printDebugLog(msgSender, transaction);
         return executeTransaction(player, targetItem, amount, transaction, msgSender);
     }
 
@@ -263,16 +265,71 @@ public class CraftingTaskExecutor {
         return status.name();
     }
 
-    private static void printDebugLog(Consumer<Component> msgSender, Map<MaterialKey, Integer> netNeeds, Map<Item, Integer> netProvides) {
+    private static void printDebugLog(Consumer<Component> msgSender, CraftingTransaction transaction) {
         msgSender.accept(Component.literal("§8--- [RecursiveCraft Transaction] ---"));
-        if (!netNeeds.isEmpty()) {
+        if (!transaction.getMaterialNeeds().isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
-            netNeeds.forEach((key, itemAmount) -> msgSender.accept(Component.literal("  - " + itemAmount + "x " + key)));
+            transaction.getMaterialNeeds().forEach((key, itemAmount) ->
+                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + describeMaterialKeyForPlayer(key)))
+            );
         }
-        if (!netProvides.isEmpty()) {
+        Map<String, Integer> outputDisplay = aggregateOutputDisplay(transaction.getResolvedOutputs());
+        if (!outputDisplay.isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_produces"));
-            netProvides.forEach((item, itemAmount) -> msgSender.accept(Component.literal("  - " + itemAmount + "x " + item.getDescription().getString())));
+            outputDisplay.forEach((displayName, itemAmount) ->
+                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + displayName))
+            );
         }
         msgSender.accept(Component.literal("§8---------------------------------"));
+    }
+
+    static String describeMaterialKeyForPlayer(MaterialKey key) {
+        String baseName = key.item().getDescription().getString();
+        List<String> qualifiers = new ArrayList<>();
+        key.payload().fields().forEach(field -> {
+            if ("damage".equals(field.key())) {
+                if (!"0".equals(field.value())) {
+                    qualifiers.add("damage=" + field.value());
+                }
+                return;
+            }
+            if (field.key().startsWith("nbt:")) {
+                String displayKey = field.key().substring(4);
+                String displayValue = simplifyCanonicalValue(field.value());
+                qualifiers.add(displayValue.isEmpty() ? displayKey : displayKey + "=" + displayValue);
+            }
+        });
+        return qualifiers.isEmpty() ? baseName : baseName + " [" + String.join(", ", qualifiers) + "]";
+    }
+
+    private static Map<String, Integer> aggregateOutputDisplay(List<ItemStack> outputs) {
+        Map<String, Integer> aggregated = new LinkedHashMap<>();
+        for (ItemStack stack : outputs) {
+            if (stack == null || stack.isEmpty()) {
+                continue;
+            }
+            aggregated.merge(describeStackForPlayer(stack), stack.getCount(), Integer::sum);
+        }
+        return aggregated;
+    }
+
+    private static String describeStackForPlayer(ItemStack stack) {
+        String hoverName = stack.getHoverName().getString();
+        if (stack.getDamageValue() <= 0) {
+            return hoverName;
+        }
+        return hoverName + " [damage=" + stack.getDamageValue() + "]";
+    }
+
+    private static String simplifyCanonicalValue(String canonical) {
+        if (canonical == null || canonical.isBlank()) {
+            return "";
+        }
+        String simplified = canonical.replaceFirst("^\\d+\\[", "[");
+        simplified = simplified.replaceAll("(^|[=\\[,])\\d+:", "$1");
+        if (simplified.length() <= 40) {
+            return simplified;
+        }
+        return simplified.substring(0, 37) + "...";
     }
 }

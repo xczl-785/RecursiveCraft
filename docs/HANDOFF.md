@@ -25,7 +25,7 @@
 
 1. 当前实现主线已落在真实 `1.20.1` 分支。
 2. `Phase 2` 第一阶段运行时 NBT 主链已经落地，范围限定为单来源玩家背包路径。
-3. `Phase 4A` 第一批“目标产物身份主动指定”已经完成后端契约、执行链路、JEI 构包和自动化覆盖。
+3. `Phase 4A` 第一批“目标产物身份主动指定”已经完成后端契约、执行链路、JEI 构包、GUI 的 JEI runtime 变体补充选择和自动化覆盖。
 4. `Phase 4A` 的固定自动化矩阵与 `forge:configureClientLaunch` 已在当前工作树重新验证通过。
 5. `Phase 4A` 的关键 runtime 身份链路证据已补齐：Forge runtime 中已观测到 `recursivecraft:debug/handheld_crafter_blue|red` 的真实产物分别保留 `recursivecraft_debug.variant = "blue"|"red"`。
 6. 共享库存抽象层已经是正式当前架构，不再只存在于历史计划文档中。

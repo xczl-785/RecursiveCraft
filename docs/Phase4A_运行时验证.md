@@ -19,7 +19,7 @@
 本文件不覆盖：
 
 1. 命令增强版 `SNBT` 输入
-2. 自定义 GUI 变体选择器
+2. planner 原生的通用 GUI 变体发现/选择器
 3. 外部存储来源
 
 ---
@@ -40,13 +40,13 @@
 
 ### 2.2 当前仍待完成的部分
 
-当前仍未完成：
+当前仍保留为后续抽样或扩展验证的部分：
 
-1. `JEI Ctrl` 从当前展示输出发起后，真实产物是否与展示身份一致的 gameplay 复验
-2. 同一 `Item` 的不同 NBT 输出变体在真实运行时是否稳定区分
-3. 请求级失败信息在真实界面或聊天提示中是否与自动化预期一致
+1. 更广泛 mod 场景下的组合回归，而不只是不带歧义的 debug fixture
+2. 超出 `JEI Ctrl` 入口的更多 gameplay 入口抽样
+3. 扩展来源或复杂容器场景下的身份与失败语义验证
 
-在以上证据补齐前，不应宣称 `Phase 4A` 已整体完成。
+当前不应把这些剩余项写成“关键 runtime 身份链路仍未验证”；该关键链路已取得运行时证据。
 
 ---
 
@@ -157,7 +157,7 @@ java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `2026-06-01` | `46d6a9d` | 固定自动化矩阵 | `synthetic-debug` | `TargetOutputSpecTest`、`C2SExecuteCraftPacketTest`、`CraftingTaskExecutorTargetOutputTest`、`TransactionCalculatorNbtTest`、`RecursiveCraftTransferHandlerTest`、`DebugTaggedResultRecipeTest`、`DefaultMaterialMatcherTest` | 固定矩阵可在当前工作树重跑通过 | 已使用恢复后的标准 wrapper 在当前工作树重跑，`BUILD SUCCESSFUL` | 通过 | 运行前恢复了 `gradlew` / `gradle-wrapper.jar`，否则仓库无法直接执行固定命令 |
 | `2026-06-01` | `46d6a9d` | 运行时复验准备 | `synthetic-debug` | `forge:configureClientLaunch` | Forge 客户端启动准备成功 | `forge:configureClientLaunch` 返回 `BUILD SUCCESSFUL` | 通过 | 仅证明启动准备可执行，不等于已完成真实 gameplay / JEI 手工复验 |
-| `2026-06-02` | `46d6a9d` | `2.2 / 2.3` | `gameplay` | `recursivecraft:debug/handheld_crafter_blue`、`recursivecraft:debug/handheld_crafter_red` | JEI 当前展示 blue / red 时，递归执行的真实产物保留对应目标身份 | 用户在 Forge runtime 中通过 `/data get entity @p Inventory` 观测到两个 `recursivecraft:handheld_crafter` 分别携带 `recursivecraft_debug.variant = "blue"` 与 `"red"` | 通过 | 当前证据用于闭合 `Phase 4A` 关键 runtime 身份链路；现有 debug log 仍仅按 `Item` 名称打印，不能单独区分 red / blue |
+| `2026-06-02` | `46d6a9d` | `2.2 / 2.3` | `gameplay` | `recursivecraft:debug/handheld_crafter_blue`、`recursivecraft:debug/handheld_crafter_red` | JEI 当前展示 blue / red 时，递归执行的真实产物保留对应目标身份 | 用户在 Forge runtime 中通过 `/data get entity @p Inventory` 观测到两个 `recursivecraft:handheld_crafter` 分别携带 `recursivecraft_debug.variant = "blue"` 与 `"red"` | 通过 | 当前证据用于闭合 `Phase 4A` 关键 runtime 身份链路 |
 
 ---
 
