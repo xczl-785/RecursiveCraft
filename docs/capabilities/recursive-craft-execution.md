@@ -4,7 +4,7 @@
 
 - **id**: `recursive-craft-execution`
 - **name**: 递归合成执行链路
-- **summary**: 将命令、网络包和 JEI 递归触发统一路由到事务计算器，支持可选 `TargetOutputSpec` 目标产物身份，并通过执行计划桥接到真实背包扣减与产物投放。
+- **summary**: 将命令、网络包和 JEI 递归触发统一路由到事务计算器，支持可选 `TargetOutputSpec` 目标产物身份与顶层展示输入，并通过执行计划桥接到真实背包扣减与产物投放。
 - **scope**: 包含请求校验、顶层配方解析、目标产物身份解析、运行时库存快照、递归事务计算、请求级失败语义与正式执行桥接；不包含全局规划预计算与 GUI 呈现细节。
 - **entry_points**:
   - `/craft_recursive`
@@ -18,7 +18,7 @@
   - 指定目标产物身份时，成功判定是否仍按规范化后的目标身份而非仅按 `Item` 数量
   - 运行时库存模型是否仍以 `MaterialKey` 为正式身份
   - 正式执行是否仍经 `InventoryView.planExecution()/commitExecution()`
-- **last_verified**: 2026-06-02
+- **last_verified**: 2026-06-03
 
 ---
 
@@ -43,7 +43,7 @@
 | Entry | Trigger | Evidence | Notes |
 | --- | --- | --- | --- |
 | 命令入口 | 管理员执行 `/craft_recursive` | `common/src/main/java/xczl/recursivecraft/command/RecursiveCraftCommand.java:16` | 强制顶层不指定配方 |
-| 网络包入口 | GUI 或 JEI 发送 `C2SExecuteCraftPacket` | `common/src/main/java/xczl/recursivecraft/networking/C2SExecuteCraftPacket.java:52` | 包体可选携带 `forcedRecipeId + TargetOutputSpec`，服务端排队后统一进入执行器 |
+| 网络包入口 | GUI 或 JEI 发送 `C2SExecuteCraftPacket` | `common/src/main/java/xczl/recursivecraft/networking/C2SExecuteCraftPacket.java:52` | 包体可选携带 `forcedRecipeId + TargetOutputSpec + displayedIngredients`，服务端排队后统一进入执行器 |
 | 统一执行器 | `tryExecute()` | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:37` | 所有递归合成路径的统一总入口 |
 | 递归事务计算 | `TransactionCalculator.calculate()` | `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:64` | 生成事务而不真实逐级 craft |
 | 执行桥接与提交 | `PlayerInventoryView.planExecution()/commitExecution()` | `common/src/main/java/xczl/recursivecraft/runtime/inventory/PlayerInventoryView.java:42` | 对玩家真实背包做 revalidate、精确扣减与产物投放 |
@@ -64,9 +64,9 @@
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:37`
 
-### CR-003: 可选 `TargetOutputSpec` 会沿包体与公共重载进入统一执行链，缺省时保持旧路径形状
+### CR-003: 可选 `TargetOutputSpec` 与 `displayedIngredients` 会沿包体与公共重载进入统一执行链，缺省时保持旧路径形状
 
-`C2SExecuteCraftPacket` 现在支持可选 `TargetOutputSpec` 序列化/反序列化；`CraftingTaskExecutor.tryExecute(...)` 与 `TransactionCalculator.calculate(...)` 也都公开支持该目标身份参数。若该参数为空，则继续走旧的物品级请求语义，不要求调用方升级协议。
+`C2SExecuteCraftPacket` 现在支持可选 `TargetOutputSpec` 与 `displayedIngredients` 序列化/反序列化；`CraftingTaskExecutor.tryExecute(...)` 与 `TransactionCalculator` 也都公开支持这些顶层身份参数。若这些参数为空，则继续走旧的物品级请求语义，不要求调用方升级协议。
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/networking/C2SExecuteCraftPacket.java:20`
 
@@ -76,9 +76,9 @@
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:61`
 
-### CR-005: `JEI Ctrl` 递归构包必须绑定当前展示输出身份和 `recipeId`
+### CR-005: JEI 派生的递归请求必须绑定当前展示输出身份、`recipeId` 与顶层展示输入
 
-JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从当前展示输出提取 `ItemStack` 身份，构造 `TargetOutputSpec`，并同时携带 `recipeId`。这保证了“同一 `Item`、不同 NBT 输出变体”会形成不同请求。
+JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从当前展示输出提取 `ItemStack` 身份，构造 `TargetOutputSpec`，并同时携带 `recipeId` 与当前 JEI 展示的顶层输入。该约束既适用于直接 `JEI Ctrl` 触发，也适用于 GUI 选择了 JEI runtime 补充出的具体变体目标后发起的请求。这保证了“同一 `Item`、不同 NBT 输出变体”会形成不同请求。
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/compat/jei/RecursiveCraftTransferHandler.java:204`
 

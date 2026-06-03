@@ -10,9 +10,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.menu.RecursiveCrafterMenu;
@@ -35,7 +33,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     private EditBox amountBox;
     private Button prevButton, nextButton;
     private Button executeButton;
-    private Item selectedItem = Items.AIR;
+    private CraftableTarget selectedTarget;
 
     private final CraftableItemList itemList = new CraftableItemList();
 
@@ -112,7 +110,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     }
 
     private void onExecutePressed() {
-        if (this.selectedItem == Items.AIR) return;
+        if (this.selectedTarget == null) return;
         int amount = 1;
         try {
             amount = Integer.parseInt(this.amountBox.getValue());
@@ -120,7 +118,13 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         } catch (NumberFormatException e) {
             amount = 1;
         }
-        PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(this.selectedItem, amount));
+        PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(
+                this.selectedTarget.item(),
+                amount,
+                this.selectedTarget.forcedRecipeId(),
+                this.selectedTarget.targetOutputSpec(),
+                this.selectedTarget.displayedIngredients()
+        ));
     }
 
     @Override
@@ -146,9 +150,9 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
 
         renderCraftableItems(graphics, mouseX, mouseY);
 
-        if (this.selectedItem != Items.AIR) {
+        if (this.selectedTarget != null) {
             int rightSlotX = this.leftPos + 208;
-            graphics.renderFakeItem(new ItemStack(this.selectedItem), rightSlotX, this.topPos + 8);
+            graphics.renderFakeItem(this.selectedTarget.displayStack(), rightSlotX, this.topPos + 8);
         }
 
         this.renderTooltip(graphics, mouseX, mouseY);
@@ -173,29 +177,29 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     }
 
     private void renderCraftableItems(GuiGraphics graphics, int mouseX, int mouseY) {
-        List<Item> pageItems = itemList.getCurrentPageItems();
+        List<CraftableTarget> pageItems = itemList.getCurrentPageItems();
 
         for (int i = 0; i < pageItems.size(); i++) {
-            Item item = pageItems.get(i);
-            ItemStack stack = new ItemStack(item);
+            CraftableTarget target = pageItems.get(i);
+            ItemStack stack = target.displayStack();
 
             int x = this.gridLeft + (i % GRID_COLS) * GRID_SLOT_SIZE;
             int y = this.gridTop + (i / GRID_COLS) * GRID_SLOT_SIZE;
 
             graphics.renderFakeItem(stack, x, y);
 
-            if (ClientFavorites.isFavorite(item)) {
+            if (ClientFavorites.isFavorite(target.item())) {
                 graphics.fill(x, y, x + 4, y + 4, 0xFFFFD700);
             }
 
-            if (this.selectedItem == item) {
+            if (target.equals(this.selectedTarget)) {
                 graphics.fill(x, y, x + 16, y + 16, 0x80FFFFFF);
             }
 
             if (mouseX >= x && mouseX < (x + 16) && mouseY >= y && mouseY < (y + 16)) {
                 List<Component> tooltip = Screen.getTooltipFromItem(this.minecraft, stack);
 
-                if (ClientFavorites.isFavorite(item)) {
+                if (ClientFavorites.isFavorite(target.item())) {
                     tooltip.add(Component.translatable("recursivecraft.gui.favorited").withStyle(ChatFormatting.YELLOW));
                 } else {
                     tooltip.add(Component.translatable("recursivecraft.gui.right_click_favorite").withStyle(ChatFormatting.DARK_GRAY));
@@ -215,22 +219,22 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
     }
 
     private boolean checkGridClick(double mouseX, double mouseY, int button) {
-        List<Item> pageItems = itemList.getCurrentPageItems();
+        List<CraftableTarget> pageItems = itemList.getCurrentPageItems();
 
         for (int i = 0; i < pageItems.size(); i++) {
             int x = this.gridLeft + (i % GRID_COLS) * GRID_SLOT_SIZE;
             int y = this.gridTop + (i / GRID_COLS) * GRID_SLOT_SIZE;
 
             if (mouseX >= x && mouseX < (x + 16) && mouseY >= y && mouseY < (y + 16)) {
-                Item clickedItem = pageItems.get(i);
+                CraftableTarget clickedTarget = pageItems.get(i);
 
                 if (button == 1) { // 右键收藏
-                    ClientFavorites.toggleFavorite(clickedItem);
+                    ClientFavorites.toggleFavorite(clickedTarget.item());
                     return true;
                 }
 
                 if (button == 0) { // 左键选择
-                    this.selectedItem = clickedItem;
+                    this.selectedTarget = clickedTarget;
                     return true;
                 }
             }
