@@ -4,6 +4,11 @@
 
 RecursiveCraft is a Minecraft mod that helps players perform recursive crafting using the materials already in their inventory.
 
+## Public Support
+
+- Minecraft: `1.20.1`
+- Loaders: `Forge`, `Fabric`
+
 ## Features
 
 - Builds a crafting path for a target item from known recipes
@@ -13,7 +18,8 @@ RecursiveCraft is a Minecraft mod that helps players perform recursive crafting 
 
 ## Downloads
 
-Release builds are published from this repository and may also be distributed on external mod platforms.
+- GitHub Releases
+- Planned distribution on Modrinth and CurseForge
 
 ## Public Docs
 

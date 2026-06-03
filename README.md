@@ -2,23 +2,29 @@
 
 [English](./README-en.md) | 简体中文
 
-RecursiveCraft is a Minecraft mod that helps players execute recursive crafting from the materials they already carry.
+RecursiveCraft 是一个 Minecraft 递归合成辅助 Mod，目标是让玩家基于当前背包中的材料，自动完成递归合成。
 
-## What It Does
+## 当前公开支持
 
-- Plans a crafting path for a target item from known crafting recipes
-- Checks the player inventory and performs recursive crafting automatically
-- Supports both block mode and handheld mode
-- Integrates with JEI recipe-triggered crafting flows
+- Minecraft: `1.20.1`
+- Loaders: `Forge`、`Fabric`
+
+## 功能概览
+
+- 基于已知配方为目标物品规划递归合成路径
+- 根据玩家当前背包材料执行递归合成
+- 提供方块模式与手持模式
+- 支持 JEI 触发的递归合成流程
 
 ## Downloads
 
-Release builds are published from this repository and can also be distributed through external mod platforms.
+- GitHub Releases
+- 计划同步到 Modrinth / CurseForge
 
-## Public Documentation
+## 公开文档
 
-Public capability docs are available in [docs/README.md](./docs/README.md).
+公开能力文档位于 [docs/README.md](./docs/README.md)。
 
-## License
+## 许可证
 
-Released under the MIT License. See [LICENSE](./LICENSE).
+本项目使用 MIT License，详见 [LICENSE](./LICENSE)。

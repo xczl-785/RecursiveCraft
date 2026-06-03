@@ -37,9 +37,12 @@ foreach ($branch in $branches) {
         $version = Select-String -Path (Join-Path $worktreePath "gradle.properties") -Pattern '^mod_version=(.+)$' |
             ForEach-Object { $_.Matches[0].Groups[1].Value } |
             Select-Object -First 1
+        $minecraftVersion = Select-String -Path (Join-Path $worktreePath "gradle.properties") -Pattern '^minecraft_version=(.+)$' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value } |
+            Select-Object -First 1
 
-        Copy-Item (Join-Path $worktreePath "fabric\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-$branch-fabric-$version.jar")
-        Copy-Item (Join-Path $worktreePath "forge\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-$branch-forge-$version.jar")
+        Copy-Item (Join-Path $worktreePath "fabric\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-fabric-v$version.jar")
+        Copy-Item (Join-Path $worktreePath "forge\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-forge-v$version.jar")
 
         $zipPath = Join-Path $dayRoot "recursivecraft-$branch.zip"
         if (Test-Path $zipPath) {
