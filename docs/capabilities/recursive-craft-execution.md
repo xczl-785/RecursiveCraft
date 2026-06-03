@@ -163,8 +163,7 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
   - `2026-06-02` 已在 Forge runtime 中通过 `debug/handheld_crafter_red|blue` 样例观察到真实产物保留 `recursivecraft_debug.variant = "red"|"blue"`，说明 `JEI Ctrl -> TargetOutputSpec -> resolvedOutputs` 的关键身份链路已闭合
 - 当前剩余非 blocker 验证项：
   - `2.4 / 2.5 / 2.6` 仍主要保留在 synthetic-debug / 组合验证范围
-- 当前主动复验文档：
-  - `docs/Phase4A_运行时验证.md`
+- 当前更细的阶段复验证据已迁出公开代码仓，保留在内部文档仓中维护。
 
 ---
 
@@ -195,4 +194,4 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 
 ## Archive Pointer
 
-- 历史实施计划与旧 handoff 已迁入 `docs/废弃/plans/`
+- 历史实施计划与旧 handoff 已迁出公开代码仓，转为内部档案材料。
