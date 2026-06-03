@@ -16,6 +16,7 @@ import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -36,8 +37,9 @@ class RecursiveCraftTransferHandlerTest {
         when(recipe.getId()).thenReturn(recipeId);
 
         ItemStack displayedOutput = taggedStack(Items.POTION, "Potion", "minecraft:long_swiftness");
+        List<ItemStack> displayedInputs = List.of(new ItemStack(Items.SUGAR), new ItemStack(Items.GLASS_BOTTLE));
 
-        C2SExecuteCraftPacket packet = RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedOutput, false);
+        C2SExecuteCraftPacket packet = RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedInputs, displayedOutput, false);
 
         assertEquals(Items.POTION, packet.targetItem());
         assertEquals(1, packet.amount());
@@ -45,6 +47,10 @@ class RecursiveCraftTransferHandlerTest {
         assertNotNull(packet.targetOutputSpec());
         assertEquals(Items.POTION, packet.targetOutputSpec().item());
         assertEquals(displayedOutput.getTag(), packet.targetOutputSpec().tag());
+        assertNotNull(packet.displayedIngredients());
+        assertEquals(2, packet.displayedIngredients().size());
+        assertEquals(Items.SUGAR, packet.displayedIngredients().get(0).getItem());
+        assertEquals(Items.GLASS_BOTTLE, packet.displayedIngredients().get(1).getItem());
     }
 
     @Test
@@ -56,9 +62,11 @@ class RecursiveCraftTransferHandlerTest {
 
         ItemStack redOutput = debugFixtureOutput("debug/handheld_crafter_red", Items.CRAFTING_TABLE);
         ItemStack blueOutput = debugFixtureOutput("debug/handheld_crafter_blue", Items.CRAFTING_TABLE);
+        List<ItemStack> redInputs = List.of(taggedStack(Items.WHITE_WOOL, "variant", "red-source"));
+        List<ItemStack> blueInputs = List.of(taggedStack(Items.WHITE_WOOL, "variant", "blue-source"));
 
-        C2SExecuteCraftPacket redPacket = RecursiveCraftTransferPackets.createRecursivePacket(redRecipe, redOutput, false);
-        C2SExecuteCraftPacket bluePacket = RecursiveCraftTransferPackets.createRecursivePacket(blueRecipe, blueOutput, true);
+        C2SExecuteCraftPacket redPacket = RecursiveCraftTransferPackets.createRecursivePacket(redRecipe, redInputs, redOutput, false);
+        C2SExecuteCraftPacket bluePacket = RecursiveCraftTransferPackets.createRecursivePacket(blueRecipe, blueInputs, blueOutput, true);
 
         assertEquals(1, redPacket.amount());
         assertEquals(64, bluePacket.amount());
@@ -73,6 +81,8 @@ class RecursiveCraftTransferHandlerTest {
         assertEquals("red", redPacket.targetOutputSpec().tag().getCompound("recursivecraft_debug").getString("variant"));
         assertEquals("blue", bluePacket.targetOutputSpec().tag().getCompound("recursivecraft_debug").getString("variant"));
         assertNotEquals(redPacket.targetOutputSpec().tag(), bluePacket.targetOutputSpec().tag());
+        assertEquals("red-source", redPacket.displayedIngredients().get(0).getTag().getString("variant"));
+        assertEquals("blue-source", bluePacket.displayedIngredients().get(0).getTag().getString("variant"));
     }
 
     private static ItemStack taggedStack(Item item, String key, String value) {

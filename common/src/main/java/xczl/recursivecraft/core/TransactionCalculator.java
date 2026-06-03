@@ -103,6 +103,68 @@ public class TransactionCalculator {
         return result.transaction();
     }
 
+    public CraftingTransaction calculateJeiDisplayedRecipe(Item target, int amount,
+                                                           List<ItemStack> displayedIngredients,
+                                                           ItemStack displayedOutput,
+                                                           @Nullable MaterialKey desiredOutputKey) {
+        CalcContext context = new CalcContext(snapshotPlayerInventory(), new HashSet<>());
+        RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
+        RecursiveCraft.LOGGER.info("Target: {} x{} (JEI Displayed Recipe)", target.getDescription().getString(), amount);
+        uncraftableCache.clear();
+
+        CraftingTransaction transaction = new CraftingTransaction();
+        if (displayedOutput == null || displayedOutput.isEmpty()) {
+            transaction.markUnsupported();
+            RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+            return transaction;
+        }
+
+        NormalizationResult outputIdentity = normalizer.normalize(displayedOutput.copy());
+        if (outputIdentity.kind() != NormalizationKind.NORMALIZED) {
+            transaction.markUnsupported();
+            RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+            return transaction;
+        }
+        if (desiredOutputKey != null && !desiredOutputKey.equals(outputIdentity.key())) {
+            transaction.addNeed(target, amount);
+            transaction.addMaterialNeed(desiredOutputKey, amount);
+            RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+            return transaction;
+        }
+
+        int outputCount = Math.max(1, displayedOutput.getCount());
+        int recipeRuns = (int) Math.ceil((double) amount / outputCount);
+
+        for (ItemStack ingredient : displayedIngredients) {
+            if (ingredient == null || ingredient.isEmpty()) {
+                continue;
+            }
+            NormalizationResult normalizedIngredient = normalizer.normalize(ingredient.copy());
+            if (normalizedIngredient.kind() != NormalizationKind.NORMALIZED) {
+                transaction.markUnsupported();
+                RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+                return transaction;
+            }
+
+            int totalNeed = Math.max(1, ingredient.getCount()) * recipeRuns;
+            IngredientRequirement requirement = new IngredientRequirement(
+                    List.of(normalizedIngredient.key()),
+                    List.of(),
+                    false
+            );
+            AttemptResult subTx = resolveIngredient(requirement, totalNeed, context, 1);
+            transaction.merge(subTx.transaction());
+            if (subTx.kind() != RequestLevelKind.SATISFIED) {
+                RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+                return transaction;
+            }
+        }
+
+        appendResolvedOutputs(transaction, displayedOutput, recipeRuns * outputCount);
+        RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
+        return transaction;
+    }
+
     private AttemptResult calculateRecursive(Item target, int amount, boolean isFinalTarget,
                                              CalcContext context, int debugDepth,
                                              CraftingRecipe forcedRecipe, MaterialKey desiredKey) {

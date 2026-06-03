@@ -21,6 +21,7 @@ import xczl.recursivecraft.runtime.material.NormalizationResult;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -42,12 +43,20 @@ public class CraftingTaskExecutor {
     }
 
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, ResourceLocation forcedRecipeId, Consumer<Component> msgSender) {
-        return tryExecute(player, targetItem, amount, forcedRecipeId, null, msgSender);
+        return tryExecute(player, targetItem, amount, forcedRecipeId, null, null, msgSender);
     }
 
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount,
                                      @Nullable ResourceLocation forcedRecipeId,
                                      @Nullable TargetOutputSpec targetOutputSpec,
+                                     Consumer<Component> msgSender) {
+        return tryExecute(player, targetItem, amount, forcedRecipeId, targetOutputSpec, null, msgSender);
+    }
+
+    public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount,
+                                     @Nullable ResourceLocation forcedRecipeId,
+                                     @Nullable TargetOutputSpec targetOutputSpec,
+                                     @Nullable List<ItemStack> displayedIngredients,
                                      Consumer<Component> msgSender) {
         if (!isValidRequest(targetItem, amount, targetOutputSpec, msgSender)) {
             return false;
@@ -64,11 +73,20 @@ public class CraftingTaskExecutor {
         }
 
         CraftingRecipe usedRecipe = resolveRecipe(player, targetItem, forcedRecipeId);
-        if (forcedRecipeId != null && usedRecipe == null) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.invalid_recipe"));
+        CraftingTransaction transaction = calculateTransaction(
+                player,
+                targetItem,
+                amount,
+                forcedRecipeId,
+                usedRecipe,
+                desiredOutputKey,
+                targetOutputSpec,
+                displayedIngredients,
+                msgSender
+        );
+        if (transaction == null) {
             return false;
         }
-        CraftingTransaction transaction = calculateTransaction(player, targetItem, amount, forcedRecipeId, usedRecipe, desiredOutputKey);
 
         NetChanges netChanges = splitNetChanges(transaction, desiredOutputKey);
         if (transaction.isUnsupported()) {
@@ -138,8 +156,24 @@ public class CraftingTaskExecutor {
 
     private static CraftingTransaction calculateTransaction(ServerPlayer player, Item targetItem, int amount,
                                                             ResourceLocation forcedRecipeId, CraftingRecipe usedRecipe,
-                                                            @Nullable MaterialKey desiredOutputKey) {
+                                                            @Nullable MaterialKey desiredOutputKey,
+                                                            @Nullable TargetOutputSpec targetOutputSpec,
+                                                            @Nullable List<ItemStack> displayedIngredients,
+                                                            Consumer<Component> msgSender) {
         TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
+        if (forcedRecipeId != null && usedRecipe == null) {
+            if (targetOutputSpec == null || displayedIngredients == null || displayedIngredients.isEmpty()) {
+                msgSender.accept(Component.translatable("recursivecraft.msg.invalid_recipe"));
+                return null;
+            }
+            return calculator.calculateJeiDisplayedRecipe(
+                    targetItem,
+                    amount,
+                    displayedIngredients,
+                    targetOutputSpec.toTemplateStack(),
+                    desiredOutputKey
+            );
+        }
         CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
         return calculator.calculate(targetItem, amount, true, recipeForCalc, desiredOutputKey);
     }

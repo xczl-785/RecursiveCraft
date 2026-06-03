@@ -307,6 +307,43 @@ class CraftingTaskExecutorTargetOutputTest {
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_success")));
     }
 
+    @Test
+    void tryExecute_shouldUseDisplayedIngredientsForSpecialJeiRecipeWhenTargetOutputSpecIsPresent() {
+        ItemStack redDisplayedOutput = stackWithVariant(Items.STICK, "red-output");
+        CraftingRecipe specialRecipe = mockRecipe(
+                redDisplayedOutput.copy(),
+                ingredientOf(new ItemStack(Items.BIRCH_LOG)),
+                "test:special_red_stick"
+        );
+        when(specialRecipe.isSpecial()).thenReturn(true);
+
+        RecipeManager recipeManager = mock(RecipeManager.class);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
+                .when(recipeManager).byKey(new ResourceLocation("test:special_red_stick"));
+        ServerLevel level = mock(ServerLevel.class);
+        when(level.getRecipeManager()).thenReturn(recipeManager);
+
+        ItemStack oakLog = new ItemStack(Items.OAK_LOG);
+        ServerPlayer player = mockPlayer(mockInventory(oakLog));
+        when(player.level()).thenReturn(level);
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(
+                player,
+                Items.STICK,
+                1,
+                new ResourceLocation("test:special_red_stick"),
+                new TargetOutputSpec(Items.STICK, redDisplayedOutput.getTag()),
+                List.of(new ItemStack(Items.OAK_LOG)),
+                messages::add
+        );
+
+        assertTrue(ok);
+        assertEquals(0, oakLog.getCount());
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_success")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.invalid_recipe")));
+    }
+
     private static ServerPlayer mockPlayer(Inventory inventory) {
         ServerPlayer player = mock(ServerPlayer.class);
         when(player.getInventory()).thenReturn(inventory);

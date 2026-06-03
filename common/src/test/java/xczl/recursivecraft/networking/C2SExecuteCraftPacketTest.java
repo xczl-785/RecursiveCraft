@@ -17,6 +17,7 @@ import xczl.recursivecraft.core.CraftingTaskExecutor;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,7 +62,8 @@ class C2SExecuteCraftPacketTest {
                 Items.POTION,
                 2,
                 forcedRecipeId,
-                new TargetOutputSpec(Items.POTION, tag)
+                new TargetOutputSpec(Items.POTION, tag),
+                List.of(new net.minecraft.world.item.ItemStack(Items.SUGAR), new net.minecraft.world.item.ItemStack(Items.GLASS_BOTTLE))
         );
 
         C2SExecuteCraftPacket decoded = decode(packet);
@@ -72,6 +74,10 @@ class C2SExecuteCraftPacketTest {
         assertNotNull(decoded.targetOutputSpec());
         assertEquals(Items.POTION, decoded.targetOutputSpec().item());
         assertEquals(tag, decoded.targetOutputSpec().tag());
+        assertNotNull(decoded.displayedIngredients());
+        assertEquals(2, decoded.displayedIngredients().size());
+        assertEquals(Items.SUGAR, decoded.displayedIngredients().get(0).getItem());
+        assertEquals(Items.GLASS_BOTTLE, decoded.displayedIngredients().get(1).getItem());
     }
 
     @Test

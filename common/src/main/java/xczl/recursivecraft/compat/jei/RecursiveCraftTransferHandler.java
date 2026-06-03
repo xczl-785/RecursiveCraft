@@ -78,6 +78,12 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                 return null;
             }
 
+            List<ItemStack> displayedInputs = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT).stream()
+                    .map(IRecipeSlotView::getDisplayedItemStack)
+                    .flatMap(Optional::stream)
+                    .filter(stack -> !stack.isEmpty())
+                    .map(ItemStack::copy)
+                    .toList();
             ItemStack displayedOutput = recipeSlots.getSlotViews(RecipeIngredientRole.OUTPUT).stream()
                     .map(IRecipeSlotView::getDisplayedItemStack)
                     .flatMap(Optional::stream)
@@ -85,7 +91,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                     .findFirst()
                     .orElse(output);
             PacketHandler.CHANNEL.sendToServer(
-                    RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedOutput, maxTransfer)
+                    RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedInputs, displayedOutput, maxTransfer)
             );
             return null;
         }
@@ -195,13 +201,14 @@ final class RecursiveCraftTransferPackets {
     private RecursiveCraftTransferPackets() {
     }
 
-    static C2SExecuteCraftPacket createRecursivePacket(CraftingRecipe recipe, ItemStack displayedOutput, boolean maxTransfer) {
+    static C2SExecuteCraftPacket createRecursivePacket(CraftingRecipe recipe, List<ItemStack> displayedInputs, ItemStack displayedOutput, boolean maxTransfer) {
         int craftAmount = maxTransfer ? 64 : 1;
         return new C2SExecuteCraftPacket(
                 displayedOutput.getItem(),
                 craftAmount,
                 recipe.getId(),
-                new TargetOutputSpec(displayedOutput.getItem(), displayedOutput.getTag())
+                new TargetOutputSpec(displayedOutput.getItem(), displayedOutput.getTag()),
+                displayedInputs
         );
     }
 }
