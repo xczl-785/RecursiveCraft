@@ -38,11 +38,15 @@ dependencies {
 }
 
 processResources {
+    filteringCharset = "UTF-8"
+
     def replaceProperties = [
             "version": rootProject.mod_version,
             "mod_id": rootProject.mod_id,
             "mod_name": rootProject.mod_name,
+            "mod_name_json": rootProject.mod_name_json,
             "mod_description": rootProject.mod_description,
+            "mod_description_json": rootProject.mod_description_json,
             "mod_license": rootProject.mod_license,
             "mod_authors": rootProject.mod_authors,
             "mod_homepage": rootProject.mod_homepage,
