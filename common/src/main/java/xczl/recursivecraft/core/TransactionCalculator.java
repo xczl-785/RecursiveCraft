@@ -53,10 +53,14 @@ public class TransactionCalculator {
 
     private static class CalcContext {
         VirtualInventorySnapshot virtualInventory;
+        VirtualInventorySnapshot playerBackedInventory;
         final Set<MaterialRequestKey> recursionStack;
 
-        private CalcContext(VirtualInventorySnapshot virtualInventory, Set<MaterialRequestKey> recursionStack) {
+        private CalcContext(VirtualInventorySnapshot virtualInventory,
+                            VirtualInventorySnapshot playerBackedInventory,
+                            Set<MaterialRequestKey> recursionStack) {
             this.virtualInventory = virtualInventory;
+            this.playerBackedInventory = playerBackedInventory;
             this.recursionStack = recursionStack;
         }
     }
@@ -93,7 +97,8 @@ public class TransactionCalculator {
     public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget,
                                          @Nullable CraftingRecipe forcedRecipe,
                                          @Nullable MaterialKey desiredOutputKey) {
-        CalcContext context = new CalcContext(snapshotPlayerInventory(), new HashSet<>());
+        VirtualInventorySnapshot playerInventorySnapshot = snapshotPlayerInventory();
+        CalcContext context = new CalcContext(playerInventorySnapshot, playerInventorySnapshot, new HashSet<>());
         logCalculationStart(target, amount, forcedRecipe);
         uncraftableCache.clear();
 
@@ -107,7 +112,8 @@ public class TransactionCalculator {
                                                            List<ItemStack> displayedIngredients,
                                                            ItemStack displayedOutput,
                                                            @Nullable MaterialKey desiredOutputKey) {
-        CalcContext context = new CalcContext(snapshotPlayerInventory(), new HashSet<>());
+        VirtualInventorySnapshot playerInventorySnapshot = snapshotPlayerInventory();
+        CalcContext context = new CalcContext(playerInventorySnapshot, playerInventorySnapshot, new HashSet<>());
         RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
         RecursiveCraft.LOGGER.info("Target: {} x{} (JEI Displayed Recipe)", target.getDescription().getString(), amount);
         uncraftableCache.clear();
@@ -513,8 +519,12 @@ public class TransactionCalculator {
             return 0;
         }
         int consumed = Math.min(amount, available);
-        transaction.addMaterialNeed(key, consumed);
+        int playerBackedAvailable = context.playerBackedInventory.totals().getOrDefault(key, 0);
+        int craftedAvailable = Math.max(0, available - playerBackedAvailable);
+        int playerBackedConsumed = Math.max(0, consumed - craftedAvailable);
+        transaction.addMaterialNeed(key, playerBackedConsumed);
         addToVirtualInventory(context, key, -consumed);
+        addToPlayerBackedInventory(context, key, -playerBackedConsumed);
         return consumed;
     }
 
@@ -574,7 +584,11 @@ public class TransactionCalculator {
     }
 
     private CalcContext cloneContext(CalcContext source) {
-        return new CalcContext(copySnapshot(source.virtualInventory), source.recursionStack);
+        return new CalcContext(
+                copySnapshot(source.virtualInventory),
+                copySnapshot(source.playerBackedInventory),
+                source.recursionStack
+        );
     }
 
     private VirtualInventorySnapshot copySnapshot(VirtualInventorySnapshot source) {
@@ -595,9 +609,20 @@ public class TransactionCalculator {
     }
 
     private void addToVirtualInventory(CalcContext context, MaterialKey key, int delta) {
-        Map<MaterialKey, Integer> totals = new HashMap<>(context.virtualInventory.totals());
+        context.virtualInventory = addToSnapshot(context.virtualInventory, key, delta);
+    }
+
+    private void addToPlayerBackedInventory(CalcContext context, MaterialKey key, int delta) {
+        if (delta == 0) {
+            return;
+        }
+        context.playerBackedInventory = addToSnapshot(context.playerBackedInventory, key, delta);
+    }
+
+    private VirtualInventorySnapshot addToSnapshot(VirtualInventorySnapshot snapshot, MaterialKey key, int delta) {
+        Map<MaterialKey, Integer> totals = new HashMap<>(snapshot.totals());
         Map<Item, List<MaterialKey>> itemIndex = new HashMap<>();
-        context.virtualInventory.itemIndex().forEach((item, keys) -> itemIndex.put(item, new ArrayList<>(keys)));
+        snapshot.itemIndex().forEach((item, keys) -> itemIndex.put(item, new ArrayList<>(keys)));
 
         int updated = totals.getOrDefault(key, 0) + delta;
         if (updated > 0) {
@@ -617,7 +642,7 @@ public class TransactionCalculator {
             }
         }
 
-        context.virtualInventory = new VirtualInventorySnapshot(totals, itemIndex);
+        return new VirtualInventorySnapshot(totals, itemIndex);
     }
 
     private String stableRequirementKey(IngredientRequirement requirement) {

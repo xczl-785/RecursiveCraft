@@ -14,6 +14,9 @@ import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.data.CraftingTransaction;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -112,6 +115,45 @@ class TransactionCalculatorTest {
         assertFalse(tx.getNeeds().containsKey(Items.STICK));
     }
 
+    @Test
+    void calculate_shouldUseCraftedIntermediateMaterialsWithoutRequiringThemInPlayerInventory() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(Items.OAK_LOG),
+                "test:planks_from_log"
+        );
+        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+                Items.STICK, 4,
+                "test:sticks_from_planks",
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS)
+        );
+        CraftingRecipe axeRecipe = mockRecipeWithIngredients(
+                Items.WOODEN_AXE, 1,
+                "test:wooden_axe",
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.STICK),
+                Ingredient.of(Items.STICK)
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe, Items.STICK, stickRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0, Items.STICK, 2.0, Items.WOODEN_AXE, 4.0),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe), Items.STICK, List.of(stickRecipe))
+        );
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 2));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+
+        CraftingTransaction tx = calculator.calculate(Items.WOODEN_AXE, 1, true, axeRecipe);
+
+        assertEquals(2, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
+        tx.getMaterialNeeds().forEach((key, amount) -> assertEquals(Items.OAK_LOG, key.item()));
+        assertEquals(1, tx.getProvides().getOrDefault(Items.WOODEN_AXE, 0));
+        assertFalse(tx.getMaterialNeeds().keySet().stream().anyMatch(key -> key.item() == Items.OAK_PLANKS));
+        assertFalse(tx.getMaterialNeeds().keySet().stream().anyMatch(key -> key.item() == Items.STICK));
+    }
+
     private static Inventory mockInventory(ItemStack... stacks) {
         Inventory inv = mock(Inventory.class);
         when(inv.getContainerSize()).thenReturn(stacks.length);
@@ -122,9 +164,15 @@ class TransactionCalculatorTest {
     }
 
     private static CraftingRecipe mockRecipe(Item resultItem, int resultCount, Ingredient ingredient, String id) {
+        return mockRecipeWithIngredients(resultItem, resultCount, id, ingredient);
+    }
+
+    private static CraftingRecipe mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
-        ingredients.add(ingredient);
+        for (Ingredient ingredient : recipeIngredients) {
+            ingredients.add(ingredient);
+        }
 
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(new ItemStack(resultItem, resultCount));
@@ -132,5 +180,17 @@ class TransactionCalculatorTest {
 
         return recipe;
     }
-}
 
+    private static void setPlanningResult(Map<Item, CraftingRecipe> pathMemo,
+                                          Map<Item, Double> costMemo,
+                                          Map<Item, List<CraftingRecipe>> recipeLookup) throws Exception {
+        Constructor<CraftingPlanner.PlanningResult> constructor =
+                CraftingPlanner.PlanningResult.class.getDeclaredConstructor(Map.class, Map.class, Map.class);
+        constructor.setAccessible(true);
+        CraftingPlanner.PlanningResult result = constructor.newInstance(pathMemo, costMemo, recipeLookup);
+
+        Field resultField = CraftingPlanner.class.getDeclaredField("result");
+        resultField.setAccessible(true);
+        resultField.set(CraftingPlanner.getInstance(), result);
+    }
+}
