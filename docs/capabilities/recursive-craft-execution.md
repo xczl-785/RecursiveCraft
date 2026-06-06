@@ -17,8 +17,9 @@
   - `targetItem` 与 `TargetOutputSpec.item` 的不变量是否仍在入口层被拒绝
   - 指定目标产物身份时，成功判定是否仍按规范化后的目标身份而非仅按 `Item` 数量
   - 运行时库存模型是否仍以 `MaterialKey` 为正式身份
+  - 根级 `Damage` 标签是否仍只通过规范化 `damage` 字段表达，避免默认 `Damage:0` 与普通物品栈拆成不同材料身份
   - 正式执行是否仍经 `InventoryView.planExecution()/commitExecution()`
-- **last_verified**: 2026-06-03
+- **last_verified**: 2026-06-06
 
 ---
 
@@ -100,6 +101,12 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:87`
 
+### CR-007A: 根级 `Damage` 标签由规范化 `damage` 字段唯一表达
+
+`DefaultMaterialIdentityNormalizer` 会跳过根级 NBT `Damage` 字段，并统一使用 `ItemStack.getDamageValue()` 写入规范化 `damage` 字段。这样 recipe / JEI 模板栈中显式存在的默认 `Damage:0` 不会把普通背包栈拆成另一种 `MaterialKey`，但真实耐久差异仍会通过 `damage` 字段保留。
+
+**Evidence**: `common/src/main/java/xczl/recursivecraft/runtime/material/DefaultMaterialIdentityNormalizer.java:25`
+
 ### CR-008: 正式执行通过执行计划桥接到真实背包，不逐级真实合成
 
 `CraftingTaskExecutor` 不会逐级真实走每一级配方的 craft grid，而是先生成 `CraftingTransaction`，再通过 `PlayerInventoryView.planExecution()` 绑定真实槽位，并在 `commitExecution()` 中完成 revalidate、精确扣减和产物投放。
@@ -135,6 +142,7 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 | 配方解析 | 若改动 JEI 强制 recipe 或顶层默认选配逻辑，需同步检查命令、包和 JEI 行为 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:88` |
 | 目标产物成功判定 | 若改动目标产物身份流，需同时检查 `desiredOutputKey` 解析、`normalizedProvides` 统计、旧 item-level 成功路径回退，以及 `MISSING / UNSUPPORTED` 可见语义 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:61` |
 | 库存模型 | 若改动运行时身份模型，需同时检查共享快照构造、缺料判断、虚拟扣减、执行桥接与请求级失败语义 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/VirtualInventorySnapshot.java:26` |
+| 材料身份规范化 | 若改动 NBT / damage 规范化，需确认显式默认 `Damage:0` 与普通栈等价，非零耐久仍保留差异 | `common/src/main/java/xczl/recursivecraft/runtime/material/DefaultMaterialIdentityNormalizer.java:21` |
 | 执行语义 | 若切换为多来源或容器级执行，需重写 `InventoryView`、`ResolvedExecutionPlan` 与事务桥接边界 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/PlayerInventoryView.java:42` |
 | JEI 展示输出绑定 | 若改动 JEI 输出槽读取或 Ctrl 路径构包，需确认展示变体身份仍被原样带入网络请求，并与 `recipeId` 成对出现 | `common/src/main/java/xczl/recursivecraft/compat/jei/RecursiveCraftTransferHandler.java:74` |
 | Runtime verification fixture | 若改动 `debug/handheld_crafter_red|blue` 或 tagged recipe serializer，需同时检查 recipe id、输出 tag、planner 默认成本、JEI 构包测试与目标身份测试 | `common/src/main/resources/data/recursivecraft/recipes/debug/handheld_crafter_red.json:1` |

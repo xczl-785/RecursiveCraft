@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,6 +45,64 @@ class DefaultMaterialIdentityNormalizerTest {
         NormalizationResult result = n.normalize(stack);
 
         assertEquals(NormalizationKind.UNSUPPORTED_MATERIAL_SEMANTICS, result.kind());
+    }
+
+    @Test
+    void normalize_shouldRepresentRootDamageTagOnlyAsDamageField() {
+        ItemStack explicitDefaultDamage = new ItemStack(Items.STICK);
+        explicitDefaultDamage.getOrCreateTag().putInt("Damage", 0);
+        ItemStack plain = new ItemStack(Items.STICK);
+
+        DefaultMaterialIdentityNormalizer n = new DefaultMaterialIdentityNormalizer();
+        NormalizationResult explicitResult = n.normalize(explicitDefaultDamage);
+        NormalizationResult plainResult = n.normalize(plain);
+
+        assertEquals(plainResult.key(), explicitResult.key());
+        assertTrue(explicitResult.key().payload().fields().stream().anyMatch(f -> f.key().equals("damage") && f.value().equals("0")));
+        assertTrue(explicitResult.key().payload().fields().stream().noneMatch(f -> f.key().equals("nbt:Damage")));
+    }
+
+    @Test
+    void normalize_shouldKeepNonZeroDamageDistinctFromDefaultDamage() {
+        ItemStack undamaged = new ItemStack(Items.DIAMOND_PICKAXE);
+        ItemStack damaged = new ItemStack(Items.DIAMOND_PICKAXE);
+        damaged.setDamageValue(5);
+
+        DefaultMaterialIdentityNormalizer n = new DefaultMaterialIdentityNormalizer();
+        NormalizationResult undamagedResult = n.normalize(undamaged);
+        NormalizationResult damagedResult = n.normalize(damaged);
+
+        assertNotEquals(undamagedResult.key(), damagedResult.key());
+        assertTrue(damagedResult.key().payload().fields().stream().anyMatch(f -> f.key().equals("damage") && f.value().equals("5")));
+        assertTrue(damagedResult.key().payload().fields().stream().noneMatch(f -> f.key().equals("nbt:Damage")));
+    }
+
+    @Test
+    void normalize_shouldTreatExplicitNonZeroDamageTagLikeStackDamage() {
+        ItemStack explicitDamage = new ItemStack(Items.DIAMOND_PICKAXE);
+        explicitDamage.getOrCreateTag().putInt("Damage", 5);
+        ItemStack stackDamage = new ItemStack(Items.DIAMOND_PICKAXE);
+        stackDamage.setDamageValue(5);
+
+        DefaultMaterialIdentityNormalizer n = new DefaultMaterialIdentityNormalizer();
+
+        assertEquals(n.normalize(stackDamage).key(), n.normalize(explicitDamage).key());
+    }
+
+    @Test
+    void normalize_shouldIgnoreMalformedRootDamageTagButKeepOtherUnsupportedTags() {
+        ItemStack malformedDamage = new ItemStack(Items.STICK);
+        malformedDamage.getOrCreateTag().put("Damage", EndTag.INSTANCE);
+        ItemStack unsupportedOtherTag = new ItemStack(Items.STICK);
+        unsupportedOtherTag.getOrCreateTag().put("bad", EndTag.INSTANCE);
+
+        DefaultMaterialIdentityNormalizer n = new DefaultMaterialIdentityNormalizer();
+        NormalizationResult malformedDamageResult = n.normalize(malformedDamage);
+        NormalizationResult unsupportedOtherResult = n.normalize(unsupportedOtherTag);
+
+        assertEquals(NormalizationKind.NORMALIZED, malformedDamageResult.kind());
+        assertTrue(malformedDamageResult.key().payload().fields().stream().noneMatch(f -> f.key().equals("nbt:Damage")));
+        assertEquals(NormalizationKind.UNSUPPORTED_MATERIAL_SEMANTICS, unsupportedOtherResult.kind());
     }
 
     @Test

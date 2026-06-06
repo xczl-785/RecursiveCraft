@@ -1,5 +1,6 @@
 param(
-    [string]$OutputRoot = "dist"
+    [string]$OutputRoot = "dist",
+    [string]$ReleaseSuffix = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +9,10 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $dateStamp = Get-Date -Format "yyyy-MM-dd"
 $releaseRoot = Join-Path $repoRoot $OutputRoot
 $dayRoot = Join-Path $releaseRoot $dateStamp
+$normalizedSuffix = $ReleaseSuffix.Trim()
+if ($normalizedSuffix -and -not $normalizedSuffix.StartsWith("-")) {
+    $normalizedSuffix = "-$normalizedSuffix"
+}
 
 if (-not (Test-Path $dayRoot)) {
     New-Item -ItemType Directory -Path $dayRoot | Out-Null
@@ -41,10 +46,10 @@ foreach ($branch in $branches) {
             ForEach-Object { $_.Matches[0].Groups[1].Value } |
             Select-Object -First 1
 
-        Copy-Item (Join-Path $worktreePath "fabric\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-fabric-v$version.jar")
-        Copy-Item (Join-Path $worktreePath "forge\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-forge-v$version.jar")
+        Copy-Item (Join-Path $worktreePath "fabric\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-fabric-v$version$normalizedSuffix.jar")
+        Copy-Item (Join-Path $worktreePath "forge\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-forge-v$version$normalizedSuffix.jar")
 
-        $zipPath = Join-Path $dayRoot "recursivecraft-$branch.zip"
+        $zipPath = Join-Path $dayRoot "recursivecraft-$branch$normalizedSuffix.zip"
         if (Test-Path $zipPath) {
             Remove-Item $zipPath -Force
         }

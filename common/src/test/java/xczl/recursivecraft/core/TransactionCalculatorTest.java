@@ -1,6 +1,7 @@
 package xczl.recursivecraft.core;
 
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -22,6 +23,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -154,6 +156,49 @@ class TransactionCalculatorTest {
         assertFalse(tx.getMaterialNeeds().keySet().stream().anyMatch(key -> key.item() == Items.STICK));
     }
 
+    @Test
+    void calculate_shouldTreatDefaultDamageTagAsPlainInventoryMaterial() {
+        ItemStack plainLog = new ItemStack(Items.OAK_LOG, 1);
+        ItemStack ingredientLog = stackWithDefaultDamageTag(Items.OAK_LOG);
+        CraftingRecipe recipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(ingredientLog),
+                "test:planks_from_log_with_default_damage"
+        );
+        Inventory inv = mockInventory(plainLog);
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+
+        CraftingTransaction tx = calculator.calculate(Items.OAK_PLANKS, 4, true, recipe);
+
+        assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
+        tx.getMaterialNeeds().forEach((key, amount) -> {
+            assertEquals(Items.OAK_LOG, key.item());
+            assertFalse(key.payload().fields().stream().anyMatch(field -> field.key().equals("nbt:Damage")));
+        });
+    }
+
+    @Test
+    void calculate_shouldKeepNonZeroDamageIngredientDistinctFromUndamagedInventoryStack() {
+        ItemStack undamagedPickaxe = new ItemStack(Items.DIAMOND_PICKAXE, 1);
+        ItemStack damagedPickaxeRequirement = stackWithDamageValue(Items.DIAMOND_PICKAXE, 5);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 1,
+                Ingredient.of(damagedPickaxeRequirement),
+                "test:torch_from_damaged_pickaxe"
+        );
+        Inventory inv = mockInventory(undamagedPickaxe);
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+
+        CraftingTransaction tx = calculator.calculate(Items.TORCH, 1, true, recipe);
+
+        assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
+        tx.getMaterialNeeds().forEach((key, amount) -> {
+            assertEquals(Items.DIAMOND_PICKAXE, key.item());
+            assertTrue(key.payload().fields().stream().anyMatch(field -> field.key().equals("damage") && field.value().equals("5")));
+        });
+        assertFalse(tx.getProvides().containsKey(Items.TORCH));
+    }
+
     private static Inventory mockInventory(ItemStack... stacks) {
         Inventory inv = mock(Inventory.class);
         when(inv.getContainerSize()).thenReturn(stacks.length);
@@ -165,6 +210,20 @@ class TransactionCalculatorTest {
 
     private static CraftingRecipe mockRecipe(Item resultItem, int resultCount, Ingredient ingredient, String id) {
         return mockRecipeWithIngredients(resultItem, resultCount, id, ingredient);
+    }
+
+    private static ItemStack stackWithDefaultDamageTag(Item item) {
+        ItemStack stack = new ItemStack(item);
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("Damage", 0);
+        stack.setTag(tag);
+        return stack;
+    }
+
+    private static ItemStack stackWithDamageValue(Item item, int damage) {
+        ItemStack stack = new ItemStack(item);
+        stack.setDamageValue(damage);
+        return stack;
     }
 
     private static CraftingRecipe mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {

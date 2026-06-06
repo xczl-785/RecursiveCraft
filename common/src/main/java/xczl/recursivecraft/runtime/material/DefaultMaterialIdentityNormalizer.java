@@ -26,6 +26,9 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
         List<CanonicalField> fields = new ArrayList<>();
         if (tag != null) {
             for (String k : tag.getAllKeys()) {
+                if ("Damage".equals(k)) {
+                    continue;
+                }
                 String canonical = canonicalizeTag(tag.get(k));
                 if (canonical == null) return NormalizationResult.unsupported();
                 fields.add(new CanonicalField("nbt:" + k, canonical));
