@@ -131,6 +131,13 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 
 **Evidence**: `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:181`
 
+
+### CR-011A: 请求级 `MISSING` 会优先展示可递归求解后的一级材料缺口
+
+当递归事务无法提供足够目标产物且失败未归类为 `UNSUPPORTED` 时，执行器不再直接只展示 `MISSING`。它会基于顶层 recipe 或 JEI 展示输入重新运行一级材料诊断：每个一级 ingredient 会先尝试从当前虚拟库存满足，缺口部分再按正式递归求解能力尝试合成；只有在该一级材料仍无法满足时才展示为缺少材料。多个一级材料共享底层资源时，缺口按顶层 ingredient 的诊断顺序归属给实际无法满足的一级材料。
+
+**Evidence**: `common/src/main/java/xczl/recursivecraft/core/TransactionCalculator.java:123`
+
 ---
 
 ## Impact Surface

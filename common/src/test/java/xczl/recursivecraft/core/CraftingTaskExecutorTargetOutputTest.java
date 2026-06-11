@@ -344,6 +344,77 @@ class CraftingTaskExecutorTargetOutputTest {
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.invalid_recipe")));
     }
 
+
+    @Test
+    void tryExecute_shouldReportDisplayedMissingMaterialsForSpecialJeiRecipe() throws Exception {
+        ItemStack redDisplayedOutput = stackWithVariant(Items.STICK, "red-output");
+        CraftingRecipe specialRecipe = mockRecipe(
+                redDisplayedOutput.copy(),
+                ingredientOf(new ItemStack(Items.BIRCH_LOG)),
+                "test:special_red_stick_missing"
+        );
+        when(specialRecipe.isSpecial()).thenReturn(true);
+
+        RecipeManager recipeManager = mock(RecipeManager.class);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
+                .when(recipeManager).byKey(new ResourceLocation("test:special_red_stick_missing"));
+        ServerLevel level = mock(ServerLevel.class);
+        when(level.getRecipeManager()).thenReturn(recipeManager);
+
+        CraftingRecipe planksRecipe = mockRecipe(
+                new ItemStack(Items.OAK_PLANKS, 4),
+                ingredientOf(new ItemStack(Items.OAK_LOG)),
+                "test:planks_from_log"
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0d, Items.OAK_LOG, 1.0d, Items.DIAMOND, 1.0d),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe))
+        );
+
+        ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG)));
+        when(player.level()).thenReturn(level);
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(
+                player,
+                Items.STICK,
+                1,
+                new ResourceLocation("test:special_red_stick_missing"),
+                new TargetOutputSpec(Items.STICK, redDisplayedOutput.getTag()),
+                List.of(new ItemStack(Items.OAK_PLANKS, 2), new ItemStack(Items.DIAMOND)),
+                messages::add
+        );
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+    }
+
+    @Test
+    void tryExecute_shouldDescribeNbtMissingMaterialWithoutRawMaterialKey() throws Exception {
+        ItemStack variantStick = stackWithVariant(Items.STICK, "red-input");
+        CraftingRecipe recipe = mockRecipe(
+                new ItemStack(Items.TORCH),
+                ingredientOf(variantStick),
+                "test:torch_from_red_stick"
+        );
+        setPlanningResult(
+                Map.of(Items.TORCH, recipe),
+                Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
+                Map.of(Items.TORCH, List.of(recipe))
+        );
+
+        ServerPlayer player = mockPlayer(mockInventory());
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, null, messages::add);
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("variant=red-input")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("MaterialKey{")));
+    }
+
     @Test
     void tryExecute_shouldPrintFriendlyMaterialNamesInsteadOfRawMaterialKey() throws Exception {
         ItemStack namedOutput = new ItemStack(Items.STICK);

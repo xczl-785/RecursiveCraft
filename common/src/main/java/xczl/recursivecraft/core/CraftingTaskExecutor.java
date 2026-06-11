@@ -97,7 +97,9 @@ public class CraftingTaskExecutor {
         }
 
         if (!hasEnoughTargetProvide(targetItem, amount, desiredOutputKey, netChanges)) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
+            if (!reportTopLevelMissingMaterials(player, amount, usedRecipe, targetOutputSpec, displayedIngredients, msgSender)) {
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
+            }
             return false;
         }
 
@@ -197,6 +199,45 @@ public class CraftingTaskExecutor {
             }
         }
         return new NetChanges(netNeeds, netProvides, normalizedProvides, hasUnsupportedProvides);
+    }
+
+
+    private static boolean reportTopLevelMissingMaterials(ServerPlayer player, int amount,
+                                                          @Nullable CraftingRecipe usedRecipe,
+                                                          @Nullable TargetOutputSpec targetOutputSpec,
+                                                          @Nullable List<ItemStack> displayedIngredients,
+                                                          Consumer<Component> msgSender) {
+        TransactionCalculator calculator = new TransactionCalculator(player.getInventory());
+        TransactionCalculator.TopLevelMissingReport report;
+        if (targetOutputSpec != null && displayedIngredients != null && !displayedIngredients.isEmpty()) {
+            report = calculator.diagnoseJeiDisplayedTopLevelMissing(
+                    displayedIngredients,
+                    targetOutputSpec.toTemplateStack(),
+                    amount
+            );
+        } else if (usedRecipe != null) {
+            report = calculator.diagnoseTopLevelMissing(usedRecipe, amount);
+        } else {
+            msgSender.accept(Component.translatable("recursivecraft.msg.no_recipe"));
+            return true;
+        }
+
+        if (report.hasMissingMaterials()) {
+            msgSender.accept(Component.translatable("recursivecraft.msg.missing_materials", formatMissingMaterials(report.missingMaterials())));
+            return true;
+        }
+        return false;
+    }
+
+    private static String formatMissingMaterials(Map<MaterialKey, Integer> missingMaterials) {
+        StringBuilder builder = new StringBuilder();
+        missingMaterials.forEach((key, amount) -> {
+            if (!builder.isEmpty()) {
+                builder.append(", ");
+            }
+            builder.append(amount).append("x ").append(describeMaterialKeyForPlayer(key));
+        });
+        return builder.toString();
     }
 
     private static int configuredMaxCraftAmount() {
