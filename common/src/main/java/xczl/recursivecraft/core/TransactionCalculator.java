@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,16 @@ public class TransactionCalculator {
             this.virtualInventory = virtualInventory;
             this.playerBackedInventory = playerBackedInventory;
             this.recursionStack = recursionStack;
+        }
+    }
+
+    public record TopLevelMissingReport(Map<MaterialKey, Integer> missingMaterials, boolean unsupported) {
+        public TopLevelMissingReport {
+            missingMaterials = Collections.unmodifiableMap(new LinkedHashMap<>(missingMaterials));
+        }
+
+        public boolean hasMissingMaterials() {
+            return !missingMaterials.isEmpty();
         }
     }
 
@@ -106,6 +117,81 @@ public class TransactionCalculator {
 
         RecursiveCraft.LOGGER.info("--- [CALCULATION END] ---");
         return result.transaction();
+    }
+
+
+    public TopLevelMissingReport diagnoseTopLevelMissing(CraftingRecipe recipe, int amount) {
+        if (recipe == null || amount <= 0) {
+            return new TopLevelMissingReport(Map.of(), false);
+        }
+
+        ItemStack result = recipe.getResultItem(null);
+        int outputCount = result == null || result.isEmpty() ? 1 : Math.max(1, result.getCount());
+        int recipeRuns = (int) Math.ceil((double) amount / outputCount);
+
+        List<IngredientNeed> needs = aggregateIngredientNeedsPreservingRecipeOrder(recipe);
+        return diagnoseTopLevelNeeds(needs, recipeRuns);
+    }
+
+    public TopLevelMissingReport diagnoseJeiDisplayedTopLevelMissing(List<ItemStack> displayedIngredients,
+                                                                     ItemStack displayedOutput,
+                                                                     int amount) {
+        if (displayedIngredients == null || displayedIngredients.isEmpty() || displayedOutput == null || displayedOutput.isEmpty() || amount <= 0) {
+            return new TopLevelMissingReport(Map.of(), false);
+        }
+
+        int outputCount = Math.max(1, displayedOutput.getCount());
+        int recipeRuns = (int) Math.ceil((double) amount / outputCount);
+        List<IngredientNeed> needs = new ArrayList<>();
+        for (ItemStack ingredient : displayedIngredients) {
+            if (ingredient == null || ingredient.isEmpty()) {
+                continue;
+            }
+            NormalizationResult normalizedIngredient = normalizer.normalize(ingredient.copy());
+            if (normalizedIngredient.kind() != NormalizationKind.NORMALIZED) {
+                return new TopLevelMissingReport(Map.of(), true);
+            }
+            IngredientRequirement requirement = new IngredientRequirement(
+                    List.of(normalizedIngredient.key()),
+                    List.of(),
+                    false
+            );
+            needs.add(new IngredientNeed(requirement, Math.max(1, ingredient.getCount())));
+        }
+        return diagnoseTopLevelNeeds(needs, recipeRuns);
+    }
+
+    private TopLevelMissingReport diagnoseTopLevelNeeds(List<IngredientNeed> needs, int recipeRuns) {
+        VirtualInventorySnapshot playerInventorySnapshot = snapshotPlayerInventory();
+        CalcContext context = new CalcContext(playerInventorySnapshot, playerInventorySnapshot, new HashSet<>());
+        Map<MaterialKey, Integer> missingMaterials = new LinkedHashMap<>();
+        uncraftableCache.clear();
+
+        for (IngredientNeed need : needs) {
+            int totalNeed = need.amount * recipeRuns;
+            for (int i = 0; i < totalNeed; i++) {
+                AttemptResult attempt = resolveIngredient(need.requirement, 1, context, 1);
+                if (attempt.kind() == RequestLevelKind.SATISFIED) {
+                    continue;
+                }
+                if (attempt.kind() == RequestLevelKind.UNSUPPORTED) {
+                    return new TopLevelMissingReport(missingMaterials, true);
+                }
+                MaterialKey representative = representativeMissingMaterial(need.requirement, context.virtualInventory);
+                if (representative == null) {
+                    return new TopLevelMissingReport(missingMaterials, need.requirement.hasUnsupportedCandidates());
+                }
+                missingMaterials.merge(representative, 1, Integer::sum);
+            }
+        }
+
+        return new TopLevelMissingReport(missingMaterials, false);
+    }
+
+    private MaterialKey representativeMissingMaterial(IngredientRequirement requirement,
+                                                      VirtualInventorySnapshot virtualInventory) {
+        List<MaterialKey> sortedOptions = sortIngredientOptions(requirement, virtualInventory, 1);
+        return sortedOptions.isEmpty() ? null : sortedOptions.get(0);
     }
 
     public CraftingTransaction calculateJeiDisplayedRecipe(Item target, int amount,
@@ -316,6 +402,30 @@ public class TransactionCalculator {
             return NormalizationResult.unsupported();
         }
         return normalizer.normalize(result.copy());
+    }
+
+
+    private List<IngredientNeed> aggregateIngredientNeedsPreservingRecipeOrder(CraftingRecipe recipe) {
+        List<IngredientNeed> orderedNeeds = new ArrayList<>();
+        for (Ingredient ingredient : recipe.getIngredients()) {
+            if (ingredient.isEmpty()) {
+                continue;
+            }
+            IngredientRequirement requirement = matcher.requirementOf(ingredient);
+            IngredientNeed existing = null;
+            for (IngredientNeed need : orderedNeeds) {
+                if (need.requirement.equals(requirement)) {
+                    existing = need;
+                    break;
+                }
+            }
+            if (existing == null) {
+                orderedNeeds.add(new IngredientNeed(requirement, 1));
+            } else {
+                existing.amount++;
+            }
+        }
+        return orderedNeeds;
     }
 
     private List<IngredientNeed> aggregateIngredientNeeds(CraftingRecipe recipe) {

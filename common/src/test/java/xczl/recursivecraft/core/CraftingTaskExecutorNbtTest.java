@@ -58,7 +58,68 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getDescription().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+    }
+
+
+    @Test
+    void tryExecute_shouldReportOnlyUnsatisfiedTopLevelMaterialWhenSiblingCanBeCrafted() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
+        CraftingRecipe torchRecipe = mockRecipeWithIngredients(
+                new ItemStack(Items.TORCH, 1),
+                "test:torch_from_planks_and_diamond",
+                ingredientOf(new ItemStack(Items.OAK_PLANKS)),
+                ingredientOf(new ItemStack(Items.DIAMOND))
+        );
+        setPlanningResult(
+                Map.of(Items.TORCH, torchRecipe, Items.OAK_PLANKS, planksRecipe),
+                Map.of(Items.TORCH, 1.0d, Items.OAK_PLANKS, 1.0d, Items.OAK_LOG, 1.0d, Items.DIAMOND, 1.0d),
+                Map.of(Items.TORCH, List.of(torchRecipe), Items.OAK_PLANKS, List.of(planksRecipe))
+        );
+
+        ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG, 1)));
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+    }
+
+    @Test
+    void tryExecute_shouldReportSharedResourceShortageAsUnsatisfiedTopLevelMaterial() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
+        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+                new ItemStack(Items.STICK, 4),
+                "test:sticks_from_planks",
+                ingredientOf(new ItemStack(Items.OAK_PLANKS)),
+                ingredientOf(new ItemStack(Items.OAK_PLANKS))
+        );
+        CraftingRecipe axeRecipe = mockRecipeWithIngredients(
+                new ItemStack(Items.WOODEN_AXE, 1),
+                "test:axe_from_planks_and_sticks",
+                ingredientOf(new ItemStack(Items.OAK_PLANKS)),
+                ingredientOf(new ItemStack(Items.OAK_PLANKS)),
+                ingredientOf(new ItemStack(Items.OAK_PLANKS)),
+                ingredientOf(new ItemStack(Items.STICK)),
+                ingredientOf(new ItemStack(Items.STICK))
+        );
+        setPlanningResult(
+                Map.of(Items.WOODEN_AXE, axeRecipe, Items.OAK_PLANKS, planksRecipe, Items.STICK, stickRecipe),
+                Map.of(Items.WOODEN_AXE, 4.0d, Items.OAK_PLANKS, 1.0d, Items.STICK, 2.0d, Items.OAK_LOG, 1.0d),
+                Map.of(Items.WOODEN_AXE, List.of(axeRecipe), Items.OAK_PLANKS, List.of(planksRecipe), Items.STICK, List.of(stickRecipe))
+        );
+
+        ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG, 1)));
+        List<Component> messages = new ArrayList<>();
+
+        boolean ok = CraftingTaskExecutor.tryExecute(player, Items.WOODEN_AXE, 1, null, messages::add);
+
+        assertFalse(ok);
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("2x") && msg.toString().contains(Items.STICK.getDescription().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
     }
 
     @Test
@@ -169,9 +230,15 @@ class CraftingTaskExecutorNbtTest {
     }
 
     private static CraftingRecipe mockRecipe(ItemStack result, Ingredient ingredient, String id) {
+        return mockRecipeWithIngredients(result, id, ingredient);
+    }
+
+    private static CraftingRecipe mockRecipeWithIngredients(ItemStack result, String id, Ingredient... recipeIngredients) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
-        ingredients.add(ingredient);
+        for (Ingredient ingredient : recipeIngredients) {
+            ingredients.add(ingredient);
+        }
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(result.copy());
         when(recipe.getId()).thenReturn(new ResourceLocation(id));

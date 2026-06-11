@@ -2,6 +2,7 @@ package xczl.recursivecraft.core;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.EndTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -175,6 +176,212 @@ class TransactionCalculatorTest {
             assertEquals(Items.OAK_LOG, key.item());
             assertFalse(key.payload().fields().stream().anyMatch(field -> field.key().equals("nbt:Damage")));
         });
+    }
+
+
+    @Test
+    void diagnoseTopLevelMissing_shouldReportMissingFirstLevelBaseMaterial() {
+        Inventory inv = mockInventory();
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 1,
+                Ingredient.of(Items.OAK_LOG),
+                "test:torch_from_log"
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertFalse(report.unsupported());
+        assertEquals(1, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
+        assertTrue(report.missingMaterials().keySet().stream().anyMatch(key -> key.item() == Items.OAK_LOG));
+    }
+
+
+    @Test
+    void diagnoseTopLevelMissing_shouldReturnEmptyWhenFirstLevelBaseMaterialIsAvailable() {
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 1,
+                Ingredient.of(Items.OAK_LOG),
+                "test:torch_from_available_log"
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertFalse(report.unsupported());
+        assertTrue(report.missingMaterials().isEmpty());
+    }
+
+    @Test
+    void diagnoseTopLevelMissing_shouldNotReportFirstLevelMaterialCraftableFromInventory() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(Items.OAK_LOG),
+                "test:planks_from_log"
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0, Items.OAK_LOG, 1.0, Items.DIAMOND, Double.MAX_VALUE),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe))
+        );
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipeWithIngredients(
+                Items.TORCH, 1,
+                "test:torch_from_planks_and_diamond",
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.DIAMOND)
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertFalse(report.unsupported());
+        assertEquals(1, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
+        assertFalse(report.missingMaterials().keySet().stream().anyMatch(key -> key.item() == Items.OAK_PLANKS));
+        assertTrue(report.missingMaterials().keySet().stream().anyMatch(key -> key.item() == Items.DIAMOND));
+    }
+
+    @Test
+    void diagnoseTopLevelMissing_shouldAttributeSharedResourceShortageToUnsatisfiedFirstLevelMaterial() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(Items.OAK_LOG),
+                "test:planks_from_log"
+        );
+        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+                Items.STICK, 4,
+                "test:sticks_from_planks",
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS)
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe, Items.STICK, stickRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0, Items.STICK, 2.0, Items.OAK_LOG, 1.0),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe), Items.STICK, List.of(stickRecipe))
+        );
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipeWithIngredients(
+                Items.WOODEN_AXE, 1,
+                "test:axe_from_planks_and_sticks",
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.OAK_PLANKS),
+                Ingredient.of(Items.STICK),
+                Ingredient.of(Items.STICK)
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertFalse(report.unsupported());
+        assertEquals(2, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
+        assertTrue(report.missingMaterials().keySet().stream().allMatch(key -> key.item() == Items.STICK));
+    }
+
+
+    @Test
+    void diagnoseTopLevelMissing_shouldMultiplyMissingMaterialsByRecipeRuns() {
+        Inventory inv = mockInventory();
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 2,
+                Ingredient.of(Items.DIAMOND),
+                "test:two_torches_from_diamond"
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 5);
+
+        assertFalse(report.unsupported());
+        assertEquals(3, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
+        assertTrue(report.missingMaterials().keySet().stream().allMatch(key -> key.item() == Items.DIAMOND));
+    }
+
+    @Test
+    void diagnoseTopLevelMissing_shouldSatisfyMultiCandidateIngredientWhenAnyOptionIsCraftable() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(Items.OAK_LOG),
+                "test:planks_from_log"
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0, Items.OAK_LOG, 1.0, Items.DIAMOND, Double.MAX_VALUE),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe))
+        );
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 1,
+                Ingredient.of(Items.DIAMOND, Items.OAK_PLANKS),
+                "test:torch_from_diamond_or_planks"
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertFalse(report.unsupported());
+        assertTrue(report.missingMaterials().isEmpty());
+    }
+
+    @Test
+    void diagnoseTopLevelMissing_shouldReturnUnsupportedForUnsupportedFirstLevelIngredient() {
+        ItemStack unsupportedStick = new ItemStack(Items.STICK);
+        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        Inventory inv = mockInventory();
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+        CraftingRecipe recipe = mockRecipe(
+                Items.TORCH, 1,
+                Ingredient.of(unsupportedStick),
+                "test:torch_from_unsupported_stick"
+        );
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+
+        assertTrue(report.unsupported());
+        assertTrue(report.missingMaterials().isEmpty());
+    }
+
+    @Test
+    void diagnoseJeiDisplayedTopLevelMissing_shouldReturnUnsupportedForUnsupportedDisplayedIngredient() {
+        ItemStack unsupportedStick = new ItemStack(Items.STICK);
+        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        Inventory inv = mockInventory();
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseJeiDisplayedTopLevelMissing(
+                List.of(unsupportedStick),
+                new ItemStack(Items.TORCH, 1),
+                1
+        );
+
+        assertTrue(report.unsupported());
+        assertTrue(report.missingMaterials().isEmpty());
+    }
+
+    @Test
+    void diagnoseJeiDisplayedTopLevelMissing_shouldUseDisplayedStackCounts() throws Exception {
+        CraftingRecipe planksRecipe = mockRecipe(
+                Items.OAK_PLANKS, 4,
+                Ingredient.of(Items.OAK_LOG),
+                "test:planks_from_log"
+        );
+        setPlanningResult(
+                Map.of(Items.OAK_PLANKS, planksRecipe),
+                Map.of(Items.OAK_PLANKS, 1.0, Items.OAK_LOG, 1.0, Items.DIAMOND, Double.MAX_VALUE),
+                Map.of(Items.OAK_PLANKS, List.of(planksRecipe))
+        );
+        Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
+        TransactionCalculator calculator = new TransactionCalculator(inv);
+
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseJeiDisplayedTopLevelMissing(
+                List.of(new ItemStack(Items.OAK_PLANKS, 2), new ItemStack(Items.DIAMOND, 1)),
+                new ItemStack(Items.TORCH, 1),
+                1
+        );
+
+        assertFalse(report.unsupported());
+        assertEquals(1, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
+        assertTrue(report.missingMaterials().keySet().stream().anyMatch(key -> key.item() == Items.DIAMOND));
     }
 
     @Test
