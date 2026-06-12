@@ -123,7 +123,7 @@ class CraftingTaskExecutorTargetOutputTest {
         );
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_success")));
     }
 
@@ -242,7 +242,7 @@ class CraftingTaskExecutorTargetOutputTest {
         );
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("UNSUPPORTED")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.unsupported")));
     }
 
     @Test

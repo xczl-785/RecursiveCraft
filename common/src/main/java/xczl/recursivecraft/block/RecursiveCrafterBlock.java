@@ -22,7 +22,7 @@ import xczl.recursivecraft.menu.RecursiveCrafterMenu;
 public class RecursiveCrafterBlock extends Block {
 
     // (这个是你自己定义的GUI标题)
-    private static final Component CONTAINER_TITLE = Component.literal("Recursive Crafter");
+    private static final Component CONTAINER_TITLE = Component.translatable("block.recursivecraft.recursive_crafter");
 
     public RecursiveCrafterBlock(Properties properties) {
         super(properties);

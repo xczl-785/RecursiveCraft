@@ -1,6 +1,7 @@
 package xczl.recursivecraft.core;
 
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -92,19 +94,19 @@ public class CraftingTaskExecutor {
 
         NetChanges netChanges = splitNetChanges(transaction, desiredOutputKey);
         if (transaction.isUnsupported()) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "UNSUPPORTED"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent("unsupported")));
             return false;
         }
 
         if (!hasEnoughTargetProvide(targetItem, amount, desiredOutputKey, netChanges)) {
             if (!reportTopLevelMissingMaterials(player, amount, usedRecipe, targetOutputSpec, displayedIngredients, msgSender)) {
-                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent("missing")));
             }
             return false;
         }
 
         if (!hasEnoughMaterials(player, netChanges.needs)) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "MISSING"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent("missing")));
             return false;
         }
 
@@ -139,7 +141,7 @@ public class CraftingTaskExecutor {
         DefaultMaterialIdentityNormalizer normalizer = new DefaultMaterialIdentityNormalizer();
         NormalizationResult result = normalizer.normalize(targetOutputSpec.toTemplateStack());
         if (result.kind() != NormalizationKind.NORMALIZED) {
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", "UNSUPPORTED"));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent("unsupported")));
             return null;
         }
         return result.key();
@@ -229,15 +231,21 @@ public class CraftingTaskExecutor {
         return false;
     }
 
-    private static String formatMissingMaterials(Map<MaterialKey, Integer> missingMaterials) {
-        StringBuilder builder = new StringBuilder();
-        missingMaterials.forEach((key, amount) -> {
-            if (!builder.isEmpty()) {
-                builder.append(", ");
+    private static Component formatMissingMaterials(Map<MaterialKey, Integer> missingMaterials) {
+        MutableComponent builder = Component.empty();
+        boolean first = true;
+        for (Map.Entry<MaterialKey, Integer> entry : missingMaterials.entrySet()) {
+            if (!first) {
+                builder.append(Component.translatable("recursivecraft.msg.list_separator"));
             }
-            builder.append(amount).append("x ").append(describeMaterialKeyForPlayer(key));
-        });
-        return builder.toString();
+            builder.append(Component.translatable(
+                    "recursivecraft.msg.material_amount",
+                    entry.getValue(),
+                    describeMaterialKeyForPlayerComponent(entry.getKey())
+            ));
+            first = false;
+        }
+        return builder;
     }
 
     private static int configuredMaxCraftAmount() {
@@ -283,15 +291,15 @@ public class CraftingTaskExecutor {
             PlayerInventoryView view = new PlayerInventoryView(player);
             var plan = view.planExecution(transaction, normalizer, matcher);
             if (plan.consumptions().isEmpty() && !transaction.getMaterialNeeds().isEmpty()) {
-                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", visibleFailureCode(ExecutionCommitResult.Status.FAILED_REVALIDATION)));
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent(ExecutionCommitResult.Status.FAILED_REVALIDATION)));
                 return false;
             }
             ExecutionCommitResult result = view.commitExecution(plan, transaction);
             if (!result.success()) {
-                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", visibleFailureCode(result.status())));
+                msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent(result.status())));
                 return false;
             }
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription().getString()));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription()));
             return true;
         } catch (Exception e) {
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", e.getMessage()));
@@ -306,26 +314,50 @@ public class CraftingTaskExecutor {
         return status.name();
     }
 
+    private static Component failureReasonComponent(String reasonKey) {
+        return Component.translatable("recursivecraft.msg.failure." + reasonKey);
+    }
+
+    private static Component failureReasonComponent(ExecutionCommitResult.Status status) {
+        if (status == ExecutionCommitResult.Status.FAILED_REVALIDATION || status == ExecutionCommitResult.Status.FAILED_CONSUME) {
+            return failureReasonComponent("missing");
+        }
+        return Component.translatable("recursivecraft.msg.failure." + status.name().toLowerCase(Locale.ROOT));
+    }
+
     private static void printDebugLog(Consumer<Component> msgSender, CraftingTransaction transaction) {
-        msgSender.accept(Component.literal("§8--- [RecursiveCraft Transaction] ---"));
+        msgSender.accept(Component.translatable("recursivecraft.msg.debug_header"));
         if (!transaction.getMaterialNeeds().isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
             transaction.getMaterialNeeds().forEach((key, itemAmount) ->
-                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + describeMaterialKeyForPlayer(key)))
+                    msgSender.accept(Component.translatable("recursivecraft.msg.debug_entry", itemAmount, describeMaterialKeyForPlayerComponent(key)))
             );
         }
-        Map<String, Integer> outputDisplay = aggregateOutputDisplay(transaction.getResolvedOutputs());
+        Map<Component, Integer> outputDisplay = aggregateOutputDisplay(transaction.getResolvedOutputs());
         if (!outputDisplay.isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_produces"));
             outputDisplay.forEach((displayName, itemAmount) ->
-                    msgSender.accept(Component.literal("  - " + itemAmount + "x " + displayName))
+                    msgSender.accept(Component.translatable("recursivecraft.msg.debug_entry", itemAmount, displayName))
             );
         }
-        msgSender.accept(Component.literal("§8---------------------------------"));
+        msgSender.accept(Component.translatable("recursivecraft.msg.debug_footer"));
     }
 
     static String describeMaterialKeyForPlayer(MaterialKey key) {
         String baseName = key.item().getDescription().getString();
+        List<String> qualifiers = collectMaterialQualifiers(key);
+        return qualifiers.isEmpty() ? baseName : baseName + " [" + String.join(", ", qualifiers) + "]";
+    }
+
+    private static Component describeMaterialKeyForPlayerComponent(MaterialKey key) {
+        Component baseName = key.item().getDescription();
+        List<Component> qualifiers = collectMaterialQualifierComponents(key);
+        return qualifiers.isEmpty()
+                ? baseName
+                : Component.translatable("recursivecraft.msg.material_with_qualifiers", baseName, joinComponents(qualifiers));
+    }
+
+    private static List<String> collectMaterialQualifiers(MaterialKey key) {
         List<String> qualifiers = new ArrayList<>();
         key.payload().fields().forEach(field -> {
             if ("damage".equals(field.key())) {
@@ -340,26 +372,70 @@ public class CraftingTaskExecutor {
                 qualifiers.add(displayValue.isEmpty() ? displayKey : displayKey + "=" + displayValue);
             }
         });
-        return qualifiers.isEmpty() ? baseName : baseName + " [" + String.join(", ", qualifiers) + "]";
+        return qualifiers;
     }
 
-    private static Map<String, Integer> aggregateOutputDisplay(List<ItemStack> outputs) {
-        Map<String, Integer> aggregated = new LinkedHashMap<>();
+    private static List<Component> collectMaterialQualifierComponents(MaterialKey key) {
+        List<Component> qualifiers = new ArrayList<>();
+        key.payload().fields().forEach(field -> {
+            if ("damage".equals(field.key())) {
+                if (!"0".equals(field.value())) {
+                    qualifiers.add(Component.translatable("recursivecraft.msg.material_damage", field.value()));
+                }
+                return;
+            }
+            if (field.key().startsWith("nbt:")) {
+                String displayKey = field.key().substring(4);
+                String displayValue = simplifyCanonicalValue(field.value());
+                qualifiers.add(displayValue.isEmpty()
+                        ? Component.literal(displayKey)
+                        : Component.translatable("recursivecraft.msg.material_nbt_field", displayKey, displayValue));
+            }
+        });
+        return qualifiers;
+    }
+
+    private static Component joinComponents(List<Component> components) {
+        MutableComponent joined = Component.empty();
+        boolean first = true;
+        for (Component component : components) {
+            if (!first) {
+                joined.append(Component.translatable("recursivecraft.msg.list_separator"));
+            }
+            joined.append(component);
+            first = false;
+        }
+        return joined;
+    }
+
+    private static Map<Component, Integer> aggregateOutputDisplay(List<ItemStack> outputs) {
+        Map<String, Component> labelsByKey = new LinkedHashMap<>();
+        Map<String, Integer> countsByKey = new LinkedHashMap<>();
         for (ItemStack stack : outputs) {
             if (stack == null || stack.isEmpty()) {
                 continue;
             }
-            aggregated.merge(describeStackForPlayer(stack), stack.getCount(), Integer::sum);
+            Component label = describeStackForPlayer(stack);
+            String key = label.getString();
+            labelsByKey.putIfAbsent(key, label);
+            countsByKey.merge(key, stack.getCount(), Integer::sum);
         }
+
+        Map<Component, Integer> aggregated = new LinkedHashMap<>();
+        countsByKey.forEach((key, count) -> aggregated.put(labelsByKey.get(key), count));
         return aggregated;
     }
 
-    private static String describeStackForPlayer(ItemStack stack) {
-        String hoverName = stack.getHoverName().getString();
+    private static Component describeStackForPlayer(ItemStack stack) {
+        Component hoverName = stack.getHoverName();
         if (stack.getDamageValue() <= 0) {
             return hoverName;
         }
-        return hoverName + " [damage=" + stack.getDamageValue() + "]";
+        return Component.translatable(
+                "recursivecraft.msg.material_with_qualifiers",
+                hoverName,
+                Component.translatable("recursivecraft.msg.material_damage", stack.getDamageValue())
+        );
     }
 
     private static String simplifyCanonicalValue(String canonical) {

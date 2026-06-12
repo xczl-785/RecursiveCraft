@@ -59,7 +59,7 @@ class CraftingTaskExecutorNbtTest {
 
         assertFalse(ok);
         assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
     }
 
 
@@ -140,7 +140,7 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("UNSUPPORTED")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.unsupported")));
     }
 
     @Test
@@ -179,7 +179,7 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("FAILED_REVALIDATION")));
     }
 
@@ -210,7 +210,7 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("MISSING")));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("FAILED_CONSUME")));
     }
 
