@@ -2,14 +2,12 @@
   "itemGroup.recursivecraft.recursive_craft_tab": "Recursive Craft",
   "block.recursivecraft.recursive_crafter": "Recursive Crafter",
   "item.recursivecraft.handheld_crafter": "Handheld Crafter",
-
   "recursivecraft.gui.execute": "Craft",
   "recursivecraft.gui.output": "Output:",
   "recursivecraft.gui.amount": "Amount:",
   "recursivecraft.gui.analyzing": "Analyzing recipes...",
   "recursivecraft.gui.favorited": "★ Favorited",
   "recursivecraft.gui.right_click_favorite": "Right-click to favorite",
-
   "recursivecraft.msg.crafting_init": "§cCrafting system is initializing, please wait...",
   "recursivecraft.msg.invalid_request": "§cInvalid crafting request.",
   "recursivecraft.msg.amount_over_limit": "§cAmount exceeds limit (%s).",
@@ -24,5 +22,20 @@
   "recursivecraft.msg.missing_ingredients": "Missing ingredients",
   "recursivecraft.msg.debug_consumes": "§7Consumes:",
   "recursivecraft.msg.debug_produces": "§7Produces:",
-  "recursivecraft.msg.unknown_material": "Unknown material"
+  "recursivecraft.msg.unknown_material": "Unknown material",
+  "recursivecraft.gui.search": "Search",
+  "recursivecraft.gui.amount_input": "Amount",
+  "recursivecraft.msg.failure.unsupported": "Unsupported recipe or material",
+  "recursivecraft.msg.failure.missing": "Missing materials",
+  "recursivecraft.msg.failure.failed_insert": "Could not insert crafted items",
+  "recursivecraft.msg.failure.failed_consume": "Missing materials",
+  "recursivecraft.msg.failure.failed_revalidation": "Missing materials",
+  "recursivecraft.msg.debug_header": "§8--- [RecursiveCraft Transaction] ---",
+  "recursivecraft.msg.debug_footer": "§8---------------------------------",
+  "recursivecraft.msg.debug_entry": "  - %sx %s",
+  "recursivecraft.msg.material_amount": "%sx %s",
+  "recursivecraft.msg.material_damage": "damage=%s",
+  "recursivecraft.msg.material_nbt_field": "%s=%s",
+  "recursivecraft.msg.material_with_qualifiers": "%s [%s]",
+  "recursivecraft.msg.list_separator": ", "
 }

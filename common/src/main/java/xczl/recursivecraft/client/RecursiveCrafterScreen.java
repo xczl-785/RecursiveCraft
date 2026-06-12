@@ -62,7 +62,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         // 初始化数据
         itemList.tryLoadFromPlanner();
 
-        this.searchBox = new EditBox(this.font, this.leftPos + 9, this.topPos + 7, GRID_COLS * GRID_SLOT_SIZE, 12, Component.literal("Search"));
+        this.searchBox = new EditBox(this.font, this.leftPos + 9, this.topPos + 7, GRID_COLS * GRID_SLOT_SIZE, 12, Component.translatable("recursivecraft.gui.search"));
         this.searchBox.setResponder(query -> {
             itemList.search(query);
             updatePageButtons();
@@ -79,7 +79,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             updatePageButtons();
         }).bounds(this.leftPos + 26, pageButtonY, 16, 16).build());
 
-        this.amountBox = new EditBox(this.font, rightSlotX, this.topPos + 30, 30, 12, Component.literal("Amt"));
+        this.amountBox = new EditBox(this.font, rightSlotX, this.topPos + 30, 30, 12, Component.translatable("recursivecraft.gui.amount_input"));
         this.amountBox.setValue("1");
         this.addRenderableWidget(this.amountBox);
 
