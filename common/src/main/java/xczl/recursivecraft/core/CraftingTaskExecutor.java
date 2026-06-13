@@ -238,11 +238,7 @@ public class CraftingTaskExecutor {
             if (!first) {
                 builder.append(Component.translatable("recursivecraft.msg.list_separator"));
             }
-            builder.append(Component.translatable(
-                    "recursivecraft.msg.material_amount",
-                    entry.getValue(),
-                    describeMaterialKeyForPlayerComponent(entry.getKey())
-            ));
+            builder.append(Component.literal(entry.getValue() + "x " + describeMaterialKeyForPlayer(entry.getKey())));
             first = false;
         }
         return builder;
@@ -330,7 +326,7 @@ public class CraftingTaskExecutor {
         if (!transaction.getMaterialNeeds().isEmpty()) {
             msgSender.accept(Component.translatable("recursivecraft.msg.debug_consumes"));
             transaction.getMaterialNeeds().forEach((key, itemAmount) ->
-                    msgSender.accept(Component.translatable("recursivecraft.msg.debug_entry", itemAmount, describeMaterialKeyForPlayerComponent(key)))
+                    msgSender.accept(Component.translatable("recursivecraft.msg.debug_entry", itemAmount, describeMaterialKeyForPlayer(key)))
             );
         }
         Map<Component, Integer> outputDisplay = aggregateOutputDisplay(transaction.getResolvedOutputs());
