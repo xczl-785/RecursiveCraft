@@ -2,6 +2,17 @@
 
 All notable public-facing changes to RecursiveCraft will be documented here.
 
+## [0.84] - 2026-06-13
+
+### Changed
+
+- Use English mod metadata by default for international release packaging.
+- Improve recursive crafting missing-material diagnostics for target-output and NBT-sensitive crafting paths.
+
+### Fixed
+
+- Expanded regression coverage for target output, NBT matching, and transaction calculation cases that previously made missing materials harder to inspect.
+
 ## [0.83] - 2026-06-06
 
 ### Fixed
