@@ -45,9 +45,19 @@ foreach ($branch in $branches) {
         $minecraftVersion = Select-String -Path (Join-Path $worktreePath "gradle.properties") -Pattern '^minecraft_version=(.+)$' |
             ForEach-Object { $_.Matches[0].Groups[1].Value } |
             Select-Object -First 1
+        $platforms = Select-String -Path (Join-Path $worktreePath "gradle.properties") -Pattern '^enabled_platforms=(.+)$' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value.Split(",") } |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ } |
+            Select-Object -Unique
 
-        Copy-Item (Join-Path $worktreePath "fabric\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-fabric-v$version$normalizedSuffix.jar")
-        Copy-Item (Join-Path $worktreePath "forge\build\libs\recursivecraft-$version.jar") (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-forge-v$version$normalizedSuffix.jar")
+        foreach ($platform in $platforms) {
+            $jarPath = Join-Path $worktreePath "$platform\build\libs\recursivecraft-$version.jar"
+            if (-not (Test-Path $jarPath)) {
+                throw "Expected release jar not found: $jarPath"
+            }
+            Copy-Item $jarPath (Join-Path $branchOutput "recursivecraft-mc$minecraftVersion-$platform-v$version$normalizedSuffix.jar")
+        }
 
         $zipPath = Join-Path $dayRoot "recursivecraft-$branch$normalizedSuffix.zip"
         if (Test-Path $zipPath) {

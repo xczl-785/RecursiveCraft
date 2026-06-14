@@ -22,6 +22,7 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 import xczl.recursivecraft.networking.PacketHandler;
@@ -31,7 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> implements IRecipeTransferHandler<C, CraftingRecipe> {
+public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> implements IRecipeTransferHandler<C, RecipeHolder<CraftingRecipe>> {
 
     private final Class<C> containerClass;
     private final IRecipeTransferHandlerHelper transferHelper;
@@ -52,19 +53,20 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
     }
 
     @Override
-    public RecipeType<CraftingRecipe> getRecipeType() {
+    public RecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() {
         return RecipeTypes.CRAFTING;
     }
 
     @Override
     public @Nullable IRecipeTransferError transferRecipe(
             C container,
-            CraftingRecipe recipe,
+            RecipeHolder<CraftingRecipe> recipeHolder,
             IRecipeSlotsView recipeSlots,
             Player player,
             boolean maxTransfer,
             boolean doTransfer
     ) {
+        CraftingRecipe recipe = recipeHolder.value();
         ItemStack output = recipe.getResultItem(player.level().registryAccess());
         if (output.isEmpty()) {
             return new SimpleError(
@@ -91,7 +93,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                     .findFirst()
                     .orElse(output);
             PacketHandler.CHANNEL.sendToServer(
-                    RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedInputs, displayedOutput, maxTransfer)
+                    RecursiveCraftTransferPackets.createRecursivePacket(recipeHolder, displayedInputs, displayedOutput, maxTransfer)
             );
             return null;
         }
@@ -116,7 +118,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
             }
 
             Minecraft.getInstance().getConnection().send(
-                    new ServerboundPlaceRecipePacket(container.containerId, recipe, maxTransfer)
+                    new ServerboundPlaceRecipePacket(container.containerId, recipeHolder, maxTransfer)
             );
         }
 
@@ -201,13 +203,16 @@ final class RecursiveCraftTransferPackets {
     private RecursiveCraftTransferPackets() {
     }
 
-    static C2SExecuteCraftPacket createRecursivePacket(CraftingRecipe recipe, List<ItemStack> displayedInputs, ItemStack displayedOutput, boolean maxTransfer) {
+    static C2SExecuteCraftPacket createRecursivePacket(RecipeHolder<CraftingRecipe> recipeHolder,
+                                                       List<ItemStack> displayedInputs,
+                                                       ItemStack displayedOutput,
+                                                       boolean maxTransfer) {
         int craftAmount = maxTransfer ? 64 : 1;
         return new C2SExecuteCraftPacket(
                 displayedOutput.getItem(),
                 craftAmount,
-                recipe.getId(),
-                new TargetOutputSpec(displayedOutput.getItem(), displayedOutput.getTag()),
+                recipeHolder.id(),
+                displayedOutput.getComponentsPatch().isEmpty() ? null : TargetOutputSpec.fromStack(displayedOutput),
                 displayedInputs
         );
     }

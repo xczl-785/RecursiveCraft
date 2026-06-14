@@ -1,13 +1,11 @@
 package xczl.recursivecraft.networking;
 
 import dev.architectury.networking.NetworkChannel;
-import net.minecraft.resources.ResourceLocation;
 import xczl.recursivecraft.RecursiveCraft;
-import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 
 public class PacketHandler {
     // 创建通道
-    public static final NetworkChannel CHANNEL = NetworkChannel.create(new ResourceLocation(RecursiveCraft.MOD_ID, "main"));
+    public static final NetworkChannel CHANNEL = NetworkChannel.create(RecursiveCraft.id("main"));
 
     public static void register() {
         // 注册数据包

@@ -61,7 +61,7 @@ public class CraftableItemList {
             CraftableTarget target = new CraftableTarget(
                     displayStack,
                     null,
-                    displayStack.getTag() == null ? null : new TargetOutputSpec(displayStack.getItem(), displayStack.getTag()),
+                    displayStack.getComponentsPatch().isEmpty() ? null : TargetOutputSpec.fromStack(displayStack),
                     null
             );
             mergedTargets.put(target.searchKey(), target);

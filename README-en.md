@@ -6,8 +6,10 @@ RecursiveCraft is a Minecraft mod that helps players perform recursive crafting 
 
 ## Public Support
 
-- Minecraft: `1.20.1`
-- Loaders: `Forge`, `Fabric`
+- Minecraft: `1.20.1`, `1.21.1`
+- Loaders:
+  - `1.20.1`: `Forge`, `Fabric`
+  - `1.21.1+`: `NeoForge`, `Fabric`
 
 ## Features
 

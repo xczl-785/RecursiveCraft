@@ -13,7 +13,7 @@ public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(RecursiveCraft.MOD_ID, Registries.BLOCK);
 
     public static final RegistrySupplier<Block> RECURSIVE_CRAFTER_BLOCK = BLOCKS.register("recursive_crafter",
-            () -> new RecursiveCrafterBlock(BlockBehaviour.Properties.copy(Blocks.CRAFTING_TABLE))
+            () -> new RecursiveCrafterBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.CRAFTING_TABLE))
     );
 
     public static void register() {

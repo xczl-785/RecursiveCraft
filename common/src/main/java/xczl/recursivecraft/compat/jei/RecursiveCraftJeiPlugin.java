@@ -10,14 +10,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import xczl.recursivecraft.RecursiveCraft;
-import xczl.recursivecraft.menu.RecursiveCrafterMenu;
 
 @JeiPlugin
 public class RecursiveCraftJeiPlugin implements IModPlugin {
 
     @Override
     public ResourceLocation getPluginUid() {
-        return new ResourceLocation(RecursiveCraft.MOD_ID, "jei_plugin");
+        return RecursiveCraft.id("jei_plugin");
     }
 
     @Override

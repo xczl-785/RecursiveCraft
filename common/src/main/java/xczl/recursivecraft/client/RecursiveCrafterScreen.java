@@ -8,7 +8,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import xczl.recursivecraft.RecursiveCraft;
@@ -21,7 +20,7 @@ import java.util.List;
 
 public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCrafterMenu> {
 
-    private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(RecursiveCraft.MOD_ID, "textures/gui/recursive_crafter_gui.png");
+    private static final net.minecraft.resources.ResourceLocation BACKGROUND_TEXTURE = RecursiveCraft.id("textures/gui/recursive_crafter_gui.png");
 
     private static final int GRID_COLS = 8;
     private static final int GRID_ROWS = 6;
@@ -135,7 +134,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        this.renderBackground(graphics);
+        this.renderBackground(graphics, mouseX, mouseY, partialTicks);
         super.render(graphics, mouseX, mouseY, partialTicks);
 
         // 自动刷新：如果打开界面时配方还没算好，检测到就自动加载

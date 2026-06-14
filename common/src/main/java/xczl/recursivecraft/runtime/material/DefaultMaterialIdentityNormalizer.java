@@ -1,5 +1,9 @@
 package xczl.recursivecraft.runtime.material;
 
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.ByteArrayTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.DoubleTag;
@@ -11,10 +15,14 @@ import net.minecraft.nbt.LongArrayTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormalizer {
     @Override
@@ -22,21 +30,43 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
         if (stack == null || stack.isEmpty()) {
             throw new IllegalArgumentException("ItemStack must be non-null and non-empty");
         }
-        CompoundTag tag = stack.getTag();
         List<CanonicalField> fields = new ArrayList<>();
-        if (tag != null) {
-            for (String k : tag.getAllKeys()) {
-                if ("Damage".equals(k)) {
+        DataComponentPatch patch = stack.getComponentsPatch();
+        if (!patch.isEmpty()) {
+            for (Map.Entry<DataComponentType<?>, Optional<?>> entry : patch.entrySet()) {
+                if (entry.getKey() == DataComponents.DAMAGE) {
                     continue;
                 }
-                String canonical = canonicalizeTag(tag.get(k));
-                if (canonical == null) return NormalizationResult.unsupported();
-                fields.add(new CanonicalField("nbt:" + k, canonical));
+                if (entry.getKey() == DataComponents.CUSTOM_DATA) {
+                    if (entry.getValue().isEmpty()) {
+                        continue;
+                    }
+                    CustomData customData = (CustomData) entry.getValue().get();
+                    if (!addCustomDataFields(fields, customData.copyTag())) {
+                        return NormalizationResult.unsupported();
+                    }
+                    continue;
+                }
+                ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(entry.getKey());
+                String componentId = id != null ? id.toString() : entry.getKey().toString();
+                Object value = entry.getValue().isPresent() ? entry.getValue().get() : "<removed>";
+                fields.add(new CanonicalField("component:" + componentId, value.toString()));
             }
         }
         fields.add(new CanonicalField("damage", Integer.toString(stack.getDamageValue())));
         NormalizedMaterialPayload payload = new NormalizedMaterialPayload("v1", fields);
         return NormalizationResult.normalized(new MaterialKey(stack.getItem(), payload));
+    }
+
+    private boolean addCustomDataFields(List<CanonicalField> fields, CompoundTag tag) {
+        for (String key : tag.getAllKeys()) {
+            String canonical = canonicalizeTag(tag.get(key));
+            if (canonical == null) {
+                return false;
+            }
+            fields.add(new CanonicalField("nbt:" + key, canonical));
+        }
+        return true;
     }
 
     private String canonicalizeTag(Tag tag) {

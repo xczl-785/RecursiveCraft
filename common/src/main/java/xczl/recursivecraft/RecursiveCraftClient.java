@@ -8,7 +8,7 @@ import xczl.recursivecraft.registry.ModMenus;
 
 public class RecursiveCraftClient {
     public static void init() {
-        // [迁移] 替代 Forge 的 FMLClientSetupEvent -> MenuScreens.register
+        // Register client screens through the shared Architectury client entrypoint.
         // Architectury 使用 MenuRegistry.registerScreenFactory
         ClientLifecycleEvent.CLIENT_SETUP.register(instance -> {
             MenuRegistry.registerScreenFactory(

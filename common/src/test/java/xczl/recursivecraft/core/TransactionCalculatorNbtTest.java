@@ -3,7 +3,9 @@ package xczl.recursivecraft.core;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.EndTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.entity.player.Inventory;
@@ -12,20 +14,22 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.data.CraftingTransaction;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +46,10 @@ import static org.mockito.Mockito.when;
 class TransactionCalculatorNbtTest {
     private static final DefaultMaterialIdentityNormalizer NORMALIZER = new DefaultMaterialIdentityNormalizer();
 
-    @BeforeAll static void init(){ MinecraftTestBootstrap.init(); }
+    @BeforeAll
+    static void init() {
+        MinecraftTestBootstrap.init();
+    }
 
     @BeforeEach
     void resetPlanner() throws Exception {
@@ -60,8 +67,8 @@ class TransactionCalculatorNbtTest {
         ingredients.add(Ingredient.of(Items.OAK_LOG));
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(new ItemStack(Items.OAK_PLANKS, 4));
-        when(recipe.getId()).thenReturn(new ResourceLocation("test:r"));
-        CraftingTransaction tx = calc.calculate(Items.OAK_PLANKS, 4, true, recipe);
+
+        CraftingTransaction tx = calc.calculate(Items.OAK_PLANKS, 4, true, new RecipeHolder<>(recipeId("test:r"), recipe));
         assertFalse(tx.getMaterialNeeds().isEmpty());
     }
 
@@ -72,7 +79,7 @@ class TransactionCalculatorNbtTest {
         Inventory inv = mockInventory(blueStick);
         TransactionCalculator calc = new TransactionCalculator(inv);
 
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
 
         CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, recipe);
 
@@ -87,7 +94,7 @@ class TransactionCalculatorNbtTest {
         Inventory inv = mockInventory(blueStick);
         TransactionCalculator calc = new TransactionCalculator(inv);
 
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 new ItemStack(Items.TORCH, 1),
                 ingredientOf(redStick, blueStick),
                 "test:torch_from_two_stick_variants"
@@ -106,8 +113,8 @@ class TransactionCalculatorNbtTest {
         ItemStack redWool = stackWithVariant(Items.WHITE_WOOL, "red-source");
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe preferredBlueStickRecipe = mockRecipe(blueStick, ingredientOf(blueWool), "test:blue_stick");
-        CraftingRecipe alternateRedStickRecipe = mockRecipe(redStick, ingredientOf(redWool), "test:red_stick");
+        RecipeHolder<CraftingRecipe> preferredBlueStickRecipe = mockRecipe(blueStick, ingredientOf(blueWool), "test:blue_stick");
+        RecipeHolder<CraftingRecipe> alternateRedStickRecipe = mockRecipe(redStick, ingredientOf(redWool), "test:red_stick");
         setPlanningResult(
                 Map.of(Items.STICK, preferredBlueStickRecipe),
                 Map.of(Items.STICK, 1.0d, Items.WHITE_WOOL, 1.0d),
@@ -116,7 +123,7 @@ class TransactionCalculatorNbtTest {
 
         Inventory inv = mockInventory(redWool, blueWool);
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe parentRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
+        RecipeHolder<CraftingRecipe> parentRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
 
         CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, parentRecipe);
 
@@ -131,8 +138,8 @@ class TransactionCalculatorNbtTest {
         ItemStack blueStick = stackWithVariant(Items.STICK, "blue");
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe redStickRecipe = mockRecipe(redStick, ingredientOf(blueStick), "test:red_stick_from_blue_stick");
-        CraftingRecipe blueStickRecipe = mockRecipe(blueStick, ingredientOf(blueWool), "test:blue_stick_from_blue_wool");
+        RecipeHolder<CraftingRecipe> redStickRecipe = mockRecipe(redStick, ingredientOf(blueStick), "test:red_stick_from_blue_stick");
+        RecipeHolder<CraftingRecipe> blueStickRecipe = mockRecipe(blueStick, ingredientOf(blueWool), "test:blue_stick_from_blue_wool");
         setPlanningResult(
                 Map.of(Items.STICK, redStickRecipe),
                 Map.of(Items.STICK, 1.0d, Items.WHITE_WOOL, 1.0d),
@@ -141,7 +148,7 @@ class TransactionCalculatorNbtTest {
 
         Inventory inv = mockInventory(blueWool);
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe parentRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
+        RecipeHolder<CraftingRecipe> parentRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:torch_from_red_stick");
 
         CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, parentRecipe);
 
@@ -156,7 +163,7 @@ class TransactionCalculatorNbtTest {
         ItemStack craftableStick = stackWithVariant(Items.STICK, "z-craftable");
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe blueStickRecipe = mockRecipe(craftableStick, ingredientOf(blueWool), "test:craftable_blue_stick");
+        RecipeHolder<CraftingRecipe> blueStickRecipe = mockRecipe(craftableStick, ingredientOf(blueWool), "test:craftable_blue_stick");
         setPlanningResult(
                 Map.of(Items.STICK, blueStickRecipe),
                 Map.of(Items.STICK, 1.0d, Items.WHITE_WOOL, 1.0d),
@@ -165,7 +172,7 @@ class TransactionCalculatorNbtTest {
 
         Inventory inv = mockInventory(blueWool);
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe parentRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> parentRecipe = mockRecipe(
                 new ItemStack(Items.TORCH, 1),
                 ingredientOf(missingStick, craftableStick),
                 "test:torch_from_optional_stick_variants"
@@ -183,7 +190,7 @@ class TransactionCalculatorNbtTest {
         ItemStack redStickOutput = stackWithVariant(Items.STICK, "red-output");
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(redStickOutput.copyWithCount(2), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:red_stick_output");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(redStickOutput.copyWithCount(2), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:red_stick_output");
 
         CraftingTransaction tx = calc.calculate(Items.STICK, 1, true, recipe);
 
@@ -191,17 +198,17 @@ class TransactionCalculatorNbtTest {
         ItemStack resolved = tx.getResolvedOutputs().get(0);
         assertEquals(Items.STICK, resolved.getItem());
         assertEquals(2, resolved.getCount());
-        assertNotNull(resolved.getTag());
-        assertEquals("red-output", resolved.getTag().getString("variant"));
+        assertNotNull(customData(resolved));
+        assertEquals("red-output", customData(resolved).getString("variant"));
     }
 
     @Test
     void calculate_shouldReturnUnsupportedWhenIngredientIdentityCannotBeNormalized() {
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        applyCustomData(unsupportedStick, tagWithEntry("unsupported", EndTag.INSTANCE));
         Inventory inv = mockInventory();
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_stick");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_stick");
 
         CraftingTransaction tx = calc.calculate(Items.TORCH, 1, true, recipe);
 
@@ -213,10 +220,10 @@ class TransactionCalculatorNbtTest {
     void calculate_shouldAggregateIngredientCandidateMissingAndUnsupportedAsUnsupported() {
         ItemStack missingStick = stackWithVariant(Items.STICK, "missing");
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        applyCustomData(unsupportedStick, tagWithEntry("unsupported", EndTag.INSTANCE));
         Inventory inv = mockInventory();
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 new ItemStack(Items.TORCH, 1),
                 ingredientOf(missingStick, unsupportedStick),
                 "test:torch_from_missing_or_unsupported_stick"
@@ -230,10 +237,10 @@ class TransactionCalculatorNbtTest {
     @Test
     void calculate_shouldAggregateRecipeCandidateMissingAndUnsupportedAsUnsupported() throws Exception {
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        applyCustomData(unsupportedStick, tagWithEntry("unsupported", EndTag.INSTANCE));
 
-        CraftingRecipe missingRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:missing_recipe");
-        CraftingRecipe unsupportedRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_recipe");
+        RecipeHolder<CraftingRecipe> missingRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:missing_recipe");
+        RecipeHolder<CraftingRecipe> unsupportedRecipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_recipe");
         setPlanningResult(
                 Map.of(Items.TORCH, missingRecipe),
                 Map.of(Items.TORCH, 1.0d, Items.OAK_LOG, 1.0d, Items.STICK, 1.0d),
@@ -254,8 +261,8 @@ class TransactionCalculatorNbtTest {
         JsonObject blueRecipeJson = readRecipeJson("debug/handheld_crafter_blue");
         JsonObject normalRecipeJson = readRecipeJson("handheld_crafter");
 
-        ResourceLocation redId = recipeId("debug/handheld_crafter_red");
-        ResourceLocation blueId = recipeId("debug/handheld_crafter_blue");
+        ResourceLocation redId = recipeId("recursivecraft:debug/handheld_crafter_red");
+        ResourceLocation blueId = recipeId("recursivecraft:debug/handheld_crafter_blue");
         assertNotEquals(redId, blueId);
 
         assertEquals("recursivecraft:handheld_crafter", resultItemId(redRecipeJson));
@@ -292,25 +299,20 @@ class TransactionCalculatorNbtTest {
     void plannerRecipeCostHelper_shouldPreserveResultCountFromRecipeJson() throws Exception {
         JsonObject recipeJson = GsonHelper.parse("""
                 {
-                  "type": "recursivecraft:debug_tagged_result",
+                  "type": "minecraft:crafting_shapeless",
                   "ingredients": [
                     { "item": "recursivecraft:recursive_crafter" }
                   ],
                   "result": {
                     "item": "recursivecraft:handheld_crafter",
-                    "count": 4,
-                    "tag": {
-                      "recursivecraft_debug": {
-                        "variant": "count-check"
-                      }
-                    }
+                    "count": 4
                   }
                 }
                 """);
         Map<Item, Double> costTable = Map.of(Items.DIAMOND, 10.0d);
 
         double cost = invokePlannerRecipeCost(
-                recipeForPlannerCost(recipeJson, new ResourceLocation("recursivecraft", "count_check")),
+                recipeForPlannerCost(recipeJson, recipeId("recursivecraft:count_check")),
                 costTable
         );
 
@@ -322,12 +324,12 @@ class TransactionCalculatorNbtTest {
         ItemStack redStick = stackWithVariant(Items.STICK, "red-output");
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG));
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(redStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:red_stick");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(redStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:red_stick");
 
         CraftingTransaction tx = calc.calculate(Items.STICK, 1, true, recipe, materialKey(redStick));
 
         assertEquals(1, tx.getResolvedOutputs().size());
-        assertEquals("red-output", tx.getResolvedOutputs().get(0).getTag().getString("variant"));
+        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant"));
         assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
         assertFalse(tx.isUnsupported());
     }
@@ -338,7 +340,7 @@ class TransactionCalculatorNbtTest {
         ItemStack blueStick = stackWithVariant(Items.STICK, "blue-output");
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG));
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(blueStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:blue_stick");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(blueStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:blue_stick");
 
         CraftingTransaction tx = calc.calculate(Items.STICK, 1, true, recipe, materialKey(redStick));
 
@@ -356,12 +358,12 @@ class TransactionCalculatorNbtTest {
         ItemStack redWool = stackWithVariant(Items.WHITE_WOOL, "red-source");
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe preferredBlueRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> preferredBlueRecipe = mockRecipe(
                 blueFixtureOutput.copy(),
                 ingredientOf(blueWool),
                 "recursivecraft:debug/handheld_crafter_blue"
         );
-        CraftingRecipe alternateRedRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> alternateRedRecipe = mockRecipe(
                 redFixtureOutput.copy(),
                 ingredientOf(redWool),
                 "recursivecraft:debug/handheld_crafter_red"
@@ -390,8 +392,8 @@ class TransactionCalculatorNbtTest {
         ItemStack redWool = stackWithVariant(Items.WHITE_WOOL, "red-source");
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe preferredBlueRecipe = mockRecipe(blueStick.copy(), ingredientOf(blueWool), "test:blue_stick");
-        CraftingRecipe alternateRedRecipe = mockRecipe(redStick.copy(), ingredientOf(redWool), "test:red_stick");
+        RecipeHolder<CraftingRecipe> preferredBlueRecipe = mockRecipe(blueStick.copy(), ingredientOf(blueWool), "test:blue_stick");
+        RecipeHolder<CraftingRecipe> alternateRedRecipe = mockRecipe(redStick.copy(), ingredientOf(redWool), "test:red_stick");
         setPlanningResult(
                 Map.of(Items.STICK, preferredBlueRecipe),
                 Map.of(Items.STICK, 1.0d, Items.WHITE_WOOL, 1.0d),
@@ -405,7 +407,7 @@ class TransactionCalculatorNbtTest {
 
         assertEquals(1, tx.getMaterialNeeds().getOrDefault(materialKey(redWool), 0));
         assertFalse(tx.getMaterialNeeds().containsKey(materialKey(blueWool)));
-        assertEquals("red-output", tx.getResolvedOutputs().get(0).getTag().getString("variant"));
+        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant"));
         assertFalse(tx.isUnsupported());
     }
 
@@ -418,13 +420,13 @@ class TransactionCalculatorNbtTest {
         ItemStack blueWool = stackWithVariant(Items.WHITE_WOOL, "blue-source");
         ItemStack oakLog = new ItemStack(Items.OAK_LOG);
 
-        CraftingRecipe normalRecipe = mockRecipe(new ItemStack(fixtureItem), ingredientOf(oakLog), "recursivecraft:handheld_crafter");
-        CraftingRecipe redFixtureRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> normalRecipe = mockRecipe(new ItemStack(fixtureItem), ingredientOf(oakLog), "recursivecraft:handheld_crafter");
+        RecipeHolder<CraftingRecipe> redFixtureRecipe = mockRecipe(
                 redFixtureOutput.copy(),
                 ingredientOf(redWool),
                 "recursivecraft:debug/handheld_crafter_red"
         );
-        CraftingRecipe blueFixtureRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> blueFixtureRecipe = mockRecipe(
                 blueFixtureOutput.copy(),
                 ingredientOf(blueWool),
                 "recursivecraft:debug/handheld_crafter_blue"
@@ -444,7 +446,7 @@ class TransactionCalculatorNbtTest {
         assertFalse(tx.getMaterialNeeds().containsKey(materialKey(redWool)));
         assertFalse(tx.getMaterialNeeds().containsKey(materialKey(blueWool)));
         assertEquals(1, tx.getResolvedOutputs().size());
-        assertTrue(tx.getResolvedOutputs().get(0).getTag() == null);
+        assertTrue(customData(tx.getResolvedOutputs().get(0)) == null);
         assertFalse(tx.isUnsupported());
     }
 
@@ -453,7 +455,7 @@ class TransactionCalculatorNbtTest {
         ItemStack blueStick = stackWithVariant(Items.STICK, "blue-output");
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG));
         TransactionCalculator calc = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(blueStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:blue_stick");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(blueStick.copy(), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:blue_stick");
 
         CraftingTransaction legacy = calc.calculate(Items.STICK, 1, true, recipe);
         CraftingTransaction withNullDesired = calc.calculate(Items.STICK, 1, true, recipe, null);
@@ -463,8 +465,8 @@ class TransactionCalculatorNbtTest {
         assertEquals(legacy.getProvides(), withNullDesired.getProvides());
         assertEquals(legacy.getResolvedOutputs().size(), withNullDesired.getResolvedOutputs().size());
         assertEquals(
-                legacy.getResolvedOutputs().get(0).getTag().getString("variant"),
-                withNullDesired.getResolvedOutputs().get(0).getTag().getString("variant")
+                customData(legacy.getResolvedOutputs().get(0)).getString("variant"),
+                customData(withNullDesired.getResolvedOutputs().get(0)).getString("variant")
         );
         assertEquals(legacy.isUnsupported(), withNullDesired.isUnsupported());
     }
@@ -478,14 +480,13 @@ class TransactionCalculatorNbtTest {
         return inv;
     }
 
-    private static CraftingRecipe mockRecipe(ItemStack result, Ingredient ingredient, String id) {
+    private static RecipeHolder<CraftingRecipe> mockRecipe(ItemStack result, Ingredient ingredient, String id) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(result.copy());
-        when(recipe.getId()).thenReturn(new ResourceLocation(id));
-        return recipe;
+        return new RecipeHolder<>(recipeId(id), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -501,15 +502,17 @@ class TransactionCalculatorNbtTest {
 
     private static ItemStack stackWithVariant(Item item, String variant) {
         ItemStack stack = new ItemStack(item);
-        stack.getOrCreateTag().putString("variant", variant);
+        applyCustomData(stack, tagWithString("variant", variant));
         return stack;
     }
 
     private static ItemStack stackWithDebugVariant(Item item, String variant) {
         ItemStack stack = new ItemStack(item);
-        net.minecraft.nbt.CompoundTag debugTag = new net.minecraft.nbt.CompoundTag();
+        CompoundTag debugTag = new CompoundTag();
         debugTag.putString("variant", variant);
-        stack.getOrCreateTag().put("recursivecraft_debug", debugTag);
+        CompoundTag tag = new CompoundTag();
+        tag.put("recursivecraft_debug", debugTag);
+        applyCustomData(stack, tag);
         return stack;
     }
 
@@ -517,9 +520,9 @@ class TransactionCalculatorNbtTest {
         return NORMALIZER.normalize(stack).key();
     }
 
-    private static void setPlanningResult(Map<Item, CraftingRecipe> pathMemo,
+    private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
                                           Map<Item, Double> costMemo,
-                                          Map<Item, List<CraftingRecipe>> recipeLookup) throws Exception {
+                                          Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) throws Exception {
         Constructor<CraftingPlanner.PlanningResult> constructor =
                 CraftingPlanner.PlanningResult.class.getDeclaredConstructor(Map.class, Map.class, Map.class);
         constructor.setAccessible(true);
@@ -541,12 +544,16 @@ class TransactionCalculatorNbtTest {
         }
     }
 
-    private static ResourceLocation recipeId(String recipePath) {
-        return new ResourceLocation("recursivecraft", recipePath);
+    private static ResourceLocation recipeId(String id) {
+        String[] parts = id.split(":", 2);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
+        }
+        return ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
     }
 
     private static double plannerRecipeCostForResource(String recipePath, Map<Item, Double> costTable) throws Exception {
-        return invokePlannerRecipeCost(recipeForPlannerCost(readRecipeJson(recipePath), recipeId(recipePath)), costTable);
+        return invokePlannerRecipeCost(recipeForPlannerCost(readRecipeJson(recipePath), recipeId("recursivecraft:" + recipePath)), costTable);
     }
 
     private static String resultItemId(JsonObject recipeJson) {
@@ -554,13 +561,8 @@ class TransactionCalculatorNbtTest {
     }
 
     private static String debugFixtureVariant(JsonObject recipeJson) {
-        return GsonHelper.getAsJsonObject(
-                GsonHelper.getAsJsonObject(
-                        GsonHelper.getAsJsonObject(recipeJson, "result"),
-                        "tag"
-                ),
-                "recursivecraft_debug"
-        ).get("variant").getAsString();
+        int redstoneCount = countIngredientItem(recipeJson, "minecraft:redstone_block");
+        return redstoneCount > 0 ? "red" : "blue";
     }
 
     private static ItemStack debugFixtureOutput(String recipePath, Item item) throws IOException {
@@ -568,7 +570,7 @@ class TransactionCalculatorNbtTest {
     }
 
     private static String fixtureVariant(ItemStack stack) {
-        return stack.getTag().getCompound("recursivecraft_debug").getString("variant");
+        return customData(stack).getCompound("recursivecraft_debug").getString("variant");
     }
 
     private static int countIngredientItem(JsonObject recipeJson, String itemId) {
@@ -618,7 +620,6 @@ class TransactionCalculatorNbtTest {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         when(recipe.getIngredients()).thenReturn(plannerCostIngredients(recipeJson));
         when(recipe.getResultItem(any())).thenReturn(new ItemStack(Items.STICK, plannerCostResultCount(recipeJson)));
-        when(recipe.getId()).thenReturn(id);
         return recipe;
     }
 
@@ -664,5 +665,25 @@ class TransactionCalculatorNbtTest {
             case "minecraft:lapis_block" -> Items.LAPIS_BLOCK;
             default -> throw new IllegalArgumentException("No planner-cost item mapping for " + itemId);
         };
+    }
+
+    private static void applyCustomData(ItemStack stack, CompoundTag tag) {
+        stack.applyComponentsAndValidate(ItemStackComponentSupport.patchFromCustomData(tag));
+    }
+
+    private static CompoundTag customData(ItemStack stack) {
+        return ItemStackComponentSupport.copyCustomData(stack);
+    }
+
+    private static CompoundTag tagWithString(String key, String value) {
+        CompoundTag tag = new CompoundTag();
+        tag.putString(key, value);
+        return tag;
+    }
+
+    private static CompoundTag tagWithEntry(String key, Tag value) {
+        CompoundTag tag = new CompoundTag();
+        tag.put(key, value);
+        return tag;
     }
 }

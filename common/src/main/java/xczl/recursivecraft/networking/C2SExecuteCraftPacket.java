@@ -2,8 +2,8 @@ package xczl.recursivecraft.networking;
 
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -77,7 +77,7 @@ public class C2SExecuteCraftPacket {
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeId(BuiltInRegistries.ITEM, targetItem);
+        buf.writeById(BuiltInRegistries.ITEM::getId, targetItem);
         buf.writeInt(amount);
         buf.writeBoolean(forcedRecipeId != null);
         if (forcedRecipeId != null) {
@@ -85,24 +85,20 @@ public class C2SExecuteCraftPacket {
         }
         buf.writeBoolean(targetOutputSpec != null);
         if (targetOutputSpec != null) {
-            buf.writeId(BuiltInRegistries.ITEM, targetOutputSpec.item());
-            CompoundTag tag = targetOutputSpec.tag();
-            buf.writeBoolean(tag != null);
-            if (tag != null) {
-                buf.writeNbt(tag);
-            }
+            ItemStack.STREAM_CODEC.encode(requireRegistryFriendlyByteBuf(buf), targetOutputSpec.toTemplateStack());
         }
         buf.writeBoolean(displayedIngredients != null);
         if (displayedIngredients != null) {
             buf.writeVarInt(displayedIngredients.size());
+            RegistryFriendlyByteBuf registryBuf = requireRegistryFriendlyByteBuf(buf);
             for (ItemStack stack : displayedIngredients) {
-                buf.writeItem(stack);
+                ItemStack.STREAM_CODEC.encode(registryBuf, stack);
             }
         }
     }
 
     public static C2SExecuteCraftPacket decode(FriendlyByteBuf buf) {
-        Item item = buf.readById(BuiltInRegistries.ITEM);
+        Item item = buf.readById(BuiltInRegistries.ITEM::byId);
         int amount = buf.readInt();
         ResourceLocation recipeId = null;
         if (buf.readBoolean()) {
@@ -111,20 +107,16 @@ public class C2SExecuteCraftPacket {
 
         TargetOutputSpec targetOutputSpec = null;
         if (buf.isReadable() && buf.readBoolean()) {
-            Item targetOutputItem = buf.readById(BuiltInRegistries.ITEM);
-            CompoundTag tag = null;
-            if (buf.readBoolean()) {
-                tag = buf.readNbt();
-            }
-            targetOutputSpec = new TargetOutputSpec(targetOutputItem, tag);
+            targetOutputSpec = TargetOutputSpec.fromStack(ItemStack.STREAM_CODEC.decode(requireRegistryFriendlyByteBuf(buf)));
         }
 
         List<ItemStack> displayedIngredients = null;
         if (buf.isReadable() && buf.readBoolean()) {
             int ingredientCount = buf.readVarInt();
             displayedIngredients = new ArrayList<>(ingredientCount);
+            RegistryFriendlyByteBuf registryBuf = requireRegistryFriendlyByteBuf(buf);
             for (int i = 0; i < ingredientCount; i++) {
-                displayedIngredients.add(buf.readItem());
+                displayedIngredients.add(ItemStack.STREAM_CODEC.decode(registryBuf));
             }
         }
 
@@ -158,6 +150,13 @@ public class C2SExecuteCraftPacket {
 
     private static boolean hasConflictingTargetItem(C2SExecuteCraftPacket pkt) {
         return pkt.targetOutputSpec != null && pkt.targetItem != pkt.targetOutputSpec.item();
+    }
+
+    private static RegistryFriendlyByteBuf requireRegistryFriendlyByteBuf(FriendlyByteBuf buf) {
+        if (buf instanceof RegistryFriendlyByteBuf registryBuf) {
+            return registryBuf;
+        }
+        throw new IllegalStateException("C2SExecuteCraftPacket requires RegistryFriendlyByteBuf for component-aware serialization");
     }
 
     private static @Nullable List<ItemStack> sanitizeDisplayedIngredients(@Nullable List<ItemStack> displayedIngredients) {

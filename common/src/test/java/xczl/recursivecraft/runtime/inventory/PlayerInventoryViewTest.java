@@ -1,5 +1,6 @@
 package xczl.recursivecraft.runtime.inventory;
 
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -11,6 +12,7 @@ import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
 import xczl.recursivecraft.runtime.execution.ResolvedConsumption;
 import xczl.recursivecraft.runtime.execution.ResolvedExecutionPlan;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
@@ -82,7 +84,7 @@ class PlayerInventoryViewTest {
         CraftingTransaction transaction = new CraftingTransaction();
         transaction.addMaterialNeed(expectedKey, 1);
         ItemStack output = new ItemStack(Items.TORCH, 1);
-        output.getOrCreateTag().putString("variant", "torch-output");
+        applyVariant(output, "torch-output");
         transaction.addResolvedOutput(output);
 
         ExecutionCommitResult result = view.commitExecution(plan, transaction);
@@ -143,7 +145,13 @@ class PlayerInventoryViewTest {
 
     private static ItemStack stackWithVariant(String variant) {
         ItemStack stack = new ItemStack(Items.STICK, 1);
-        stack.getOrCreateTag().putString("variant", variant);
+        applyVariant(stack, variant);
         return stack;
+    }
+
+    private static void applyVariant(ItemStack stack, String variant) {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("variant", variant);
+        stack.applyComponentsAndValidate(ItemStackComponentSupport.patchFromCustomData(tag));
     }
 }

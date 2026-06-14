@@ -1,16 +1,20 @@
 package xczl.recursivecraft.compat.jei;
 
 import com.google.gson.JsonObject;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import java.io.IOException;
@@ -33,20 +37,20 @@ class RecursiveCraftTransferHandlerTest {
     @Test
     void createRecursivePacket_shouldUseDisplayedOutputIdentityAndRecipeId() {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
-        ResourceLocation recipeId = new ResourceLocation("test", "long_swiftness");
-        when(recipe.getId()).thenReturn(recipeId);
+        ResourceLocation recipeId = ResourceLocation.parse("test:long_swiftness");
+        RecipeHolder<CraftingRecipe> recipeHolder = new RecipeHolder<>(recipeId, recipe);
 
         ItemStack displayedOutput = taggedStack(Items.POTION, "Potion", "minecraft:long_swiftness");
         List<ItemStack> displayedInputs = List.of(new ItemStack(Items.SUGAR), new ItemStack(Items.GLASS_BOTTLE));
 
-        C2SExecuteCraftPacket packet = RecursiveCraftTransferPackets.createRecursivePacket(recipe, displayedInputs, displayedOutput, false);
+        C2SExecuteCraftPacket packet = RecursiveCraftTransferPackets.createRecursivePacket(recipeHolder, displayedInputs, displayedOutput, false);
 
         assertEquals(Items.POTION, packet.targetItem());
         assertEquals(1, packet.amount());
         assertEquals(recipeId, packet.forcedRecipeId());
         assertNotNull(packet.targetOutputSpec());
         assertEquals(Items.POTION, packet.targetOutputSpec().item());
-        assertEquals(displayedOutput.getTag(), packet.targetOutputSpec().tag());
+        assertEquals(ItemStackComponentSupport.copyCustomData(displayedOutput), packet.targetOutputSpec().tag());
         assertNotNull(packet.displayedIngredients());
         assertEquals(2, packet.displayedIngredients().size());
         assertEquals(Items.SUGAR, packet.displayedIngredients().get(0).getItem());
@@ -56,60 +60,54 @@ class RecursiveCraftTransferHandlerTest {
     @Test
     void createRecursivePacket_shouldPreserveDistinctDebugFixtureTargetOutputSpecsForSameItem() throws IOException {
         CraftingRecipe redRecipe = mock(CraftingRecipe.class);
-        when(redRecipe.getId()).thenReturn(new ResourceLocation("recursivecraft", "debug/handheld_crafter_red"));
+        RecipeHolder<CraftingRecipe> redRecipeHolder = new RecipeHolder<>(ResourceLocation.parse("recursivecraft:debug/handheld_crafter_red"), redRecipe);
         CraftingRecipe blueRecipe = mock(CraftingRecipe.class);
-        when(blueRecipe.getId()).thenReturn(new ResourceLocation("recursivecraft", "debug/handheld_crafter_blue"));
+        RecipeHolder<CraftingRecipe> blueRecipeHolder = new RecipeHolder<>(ResourceLocation.parse("recursivecraft:debug/handheld_crafter_blue"), blueRecipe);
 
         ItemStack redOutput = debugFixtureOutput("debug/handheld_crafter_red", Items.CRAFTING_TABLE);
         ItemStack blueOutput = debugFixtureOutput("debug/handheld_crafter_blue", Items.CRAFTING_TABLE);
         List<ItemStack> redInputs = List.of(taggedStack(Items.WHITE_WOOL, "variant", "red-source"));
         List<ItemStack> blueInputs = List.of(taggedStack(Items.WHITE_WOOL, "variant", "blue-source"));
 
-        C2SExecuteCraftPacket redPacket = RecursiveCraftTransferPackets.createRecursivePacket(redRecipe, redInputs, redOutput, false);
-        C2SExecuteCraftPacket bluePacket = RecursiveCraftTransferPackets.createRecursivePacket(blueRecipe, blueInputs, blueOutput, true);
+        C2SExecuteCraftPacket redPacket = RecursiveCraftTransferPackets.createRecursivePacket(redRecipeHolder, redInputs, redOutput, false);
+        C2SExecuteCraftPacket bluePacket = RecursiveCraftTransferPackets.createRecursivePacket(blueRecipeHolder, blueInputs, blueOutput, true);
 
         assertEquals(1, redPacket.amount());
         assertEquals(64, bluePacket.amount());
-        assertEquals(redRecipe.getId(), redPacket.forcedRecipeId());
-        assertEquals(blueRecipe.getId(), bluePacket.forcedRecipeId());
+        assertEquals(redRecipeHolder.id(), redPacket.forcedRecipeId());
+        assertEquals(blueRecipeHolder.id(), bluePacket.forcedRecipeId());
         assertNotNull(redPacket.targetOutputSpec());
         assertNotNull(bluePacket.targetOutputSpec());
         assertEquals(Items.CRAFTING_TABLE, redPacket.targetItem());
         assertEquals(Items.CRAFTING_TABLE, bluePacket.targetItem());
-        assertEquals(redOutput.getTag(), redPacket.targetOutputSpec().tag());
-        assertEquals(blueOutput.getTag(), bluePacket.targetOutputSpec().tag());
+        assertEquals(ItemStackComponentSupport.copyCustomData(redOutput), redPacket.targetOutputSpec().tag());
+        assertEquals(ItemStackComponentSupport.copyCustomData(blueOutput), bluePacket.targetOutputSpec().tag());
         assertEquals("red", redPacket.targetOutputSpec().tag().getCompound("recursivecraft_debug").getString("variant"));
         assertEquals("blue", bluePacket.targetOutputSpec().tag().getCompound("recursivecraft_debug").getString("variant"));
         assertNotEquals(redPacket.targetOutputSpec().tag(), bluePacket.targetOutputSpec().tag());
-        assertEquals("red-source", redPacket.displayedIngredients().get(0).getTag().getString("variant"));
-        assertEquals("blue-source", bluePacket.displayedIngredients().get(0).getTag().getString("variant"));
+        assertEquals("red-source", ItemStackComponentSupport.copyCustomData(redPacket.displayedIngredients().get(0)).getString("variant"));
+        assertEquals("blue-source", ItemStackComponentSupport.copyCustomData(bluePacket.displayedIngredients().get(0)).getString("variant"));
     }
 
     private static ItemStack taggedStack(Item item, String key, String value) {
         ItemStack stack = new ItemStack(item);
         CompoundTag tag = new CompoundTag();
         tag.putString(key, value);
-        stack.setTag(tag);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         return stack;
     }
 
     private static ItemStack debugFixtureOutput(String recipePath, Item item) throws IOException {
         ItemStack stack = new ItemStack(item);
-        stack.setTag(readFixtureTag(recipePath));
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(readFixtureTag(recipePath)));
         return stack;
     }
 
     private static CompoundTag readFixtureTag(String recipePath) throws IOException {
-        JsonObject recipeJson = readRecipeJson(recipePath);
+        readRecipeJson(recipePath);
         CompoundTag tag = new CompoundTag();
         CompoundTag debugTag = new CompoundTag();
-        debugTag.putString("variant", GsonHelper.getAsJsonObject(
-                GsonHelper.getAsJsonObject(
-                        GsonHelper.getAsJsonObject(recipeJson, "result"),
-                        "tag"
-                ),
-                "recursivecraft_debug"
-        ).get("variant").getAsString());
+        debugTag.putString("variant", recipePath.endsWith("_blue") ? "blue" : "red");
         tag.put("recursivecraft_debug", debugTag);
         return tag;
     }

@@ -1,8 +1,11 @@
 package xczl.recursivecraft.data;
 
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
@@ -61,13 +64,13 @@ class CraftingTransactionTest {
     void addResolvedOutput_shouldPreserveItemStackIdentity() {
         CraftingTransaction tx = new CraftingTransaction();
         ItemStack output = new ItemStack(Items.STICK, 2);
-        output.getOrCreateTag().putString("variant", "red-output");
+        setVariant(output, "red-output");
 
         tx.addResolvedOutput(output);
 
         assertEquals(1, tx.getResolvedOutputs().size());
         assertEquals(2, tx.getProvides().getOrDefault(Items.STICK, 0));
-        assertEquals("red-output", tx.getResolvedOutputs().get(0).getTag().getString("variant"));
+        assertEquals("red-output", variant(tx.getResolvedOutputs().get(0)));
     }
 
     @Test
@@ -76,9 +79,9 @@ class CraftingTransactionTest {
         CraftingTransaction right = new CraftingTransaction();
 
         ItemStack red = new ItemStack(Items.STICK, 1);
-        red.getOrCreateTag().putString("variant", "red-output");
+        setVariant(red, "red-output");
         ItemStack blue = new ItemStack(Items.STICK, 1);
-        blue.getOrCreateTag().putString("variant", "blue-output");
+        setVariant(blue, "blue-output");
 
         left.addResolvedOutput(red);
         right.addResolvedOutput(blue);
@@ -87,7 +90,18 @@ class CraftingTransactionTest {
 
         assertEquals(2, left.getProvides().getOrDefault(Items.STICK, 0));
         assertEquals(2, left.getResolvedOutputs().size());
-        assertEquals("red-output", left.getResolvedOutputs().get(0).getTag().getString("variant"));
-        assertEquals("blue-output", left.getResolvedOutputs().get(1).getTag().getString("variant"));
+        assertEquals("red-output", variant(left.getResolvedOutputs().get(0)));
+        assertEquals("blue-output", variant(left.getResolvedOutputs().get(1)));
+    }
+
+    private static void setVariant(ItemStack stack, String variant) {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("variant", variant);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    private static String variant(ItemStack stack) {
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        return customData == null ? "" : customData.copyTag().getString("variant");
     }
 }

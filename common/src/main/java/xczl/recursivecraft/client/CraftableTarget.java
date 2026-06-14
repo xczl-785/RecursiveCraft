@@ -1,11 +1,11 @@
 package xczl.recursivecraft.client;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.ArrayList;
@@ -53,8 +53,7 @@ public final class CraftableTarget {
 
     public String searchKey() {
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(displayStack.getItem());
-        CompoundTag tag = displayStack.getTag();
-        return itemId + "|" + (tag == null ? "" : tag.toString());
+        return itemId + "|" + ItemStackComponentSupport.componentKey(displayStack);
     }
 
     private static @Nullable List<ItemStack> copyIngredients(@Nullable List<ItemStack> displayedIngredients) {
@@ -76,7 +75,7 @@ public final class CraftableTarget {
         if (!(o instanceof CraftableTarget that)) {
             return false;
         }
-        return ItemStack.isSameItemSameTags(this.displayStack, that.displayStack)
+        return ItemStack.isSameItemSameComponents(this.displayStack, that.displayStack)
                 && Objects.equals(this.forcedRecipeId, that.forcedRecipeId)
                 && sameTargetOutputSpec(this.targetOutputSpec, that.targetOutputSpec)
                 && sameIngredients(this.displayedIngredients, that.displayedIngredients);
@@ -86,7 +85,7 @@ public final class CraftableTarget {
     public int hashCode() {
         return Objects.hash(
                 BuiltInRegistries.ITEM.getKey(displayStack.getItem()),
-                displayStack.getTag(),
+                ItemStackComponentSupport.componentKey(displayStack),
                 forcedRecipeId,
                 targetOutputSpecKey(targetOutputSpec),
                 ingredientKey(displayedIngredients)
@@ -97,7 +96,7 @@ public final class CraftableTarget {
         if (left == null || right == null) {
             return left == right;
         }
-        return left.item() == right.item() && Objects.equals(left.tag(), right.tag());
+        return left.item() == right.item() && Objects.equals(left.componentsPatch(), right.componentsPatch());
     }
 
     private static String targetOutputSpecKey(@Nullable TargetOutputSpec spec) {
@@ -105,7 +104,7 @@ public final class CraftableTarget {
             return "";
         }
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(spec.item());
-        return itemId + "|" + spec.tag();
+        return itemId + "|" + ItemStackComponentSupport.componentKey(spec.componentsPatch());
     }
 
     private static boolean sameIngredients(@Nullable List<ItemStack> left, @Nullable List<ItemStack> right) {
@@ -116,7 +115,7 @@ public final class CraftableTarget {
             return false;
         }
         for (int i = 0; i < left.size(); i++) {
-            if (!ItemStack.isSameItemSameTags(left.get(i), right.get(i)) || left.get(i).getCount() != right.get(i).getCount()) {
+            if (!ItemStack.isSameItemSameComponents(left.get(i), right.get(i)) || left.get(i).getCount() != right.get(i).getCount()) {
                 return false;
             }
         }
@@ -130,7 +129,7 @@ public final class CraftableTarget {
         List<String> keys = new ArrayList<>(ingredients.size());
         for (ItemStack stack : ingredients) {
             ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            keys.add(id + "|" + stack.getCount() + "|" + stack.getTag());
+            keys.add(id + "|" + stack.getCount() + "|" + ItemStackComponentSupport.componentKey(stack));
         }
         return keys;
     }

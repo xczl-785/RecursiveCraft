@@ -8,7 +8,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.config.ModConfig;
 import xczl.recursivecraft.data.CraftingTransaction;
@@ -76,7 +76,7 @@ public class CraftingTaskExecutor {
             return false;
         }
 
-        CraftingRecipe usedRecipe = resolveRecipe(player, targetItem, forcedRecipeId);
+        RecipeHolder<CraftingRecipe> usedRecipe = resolveRecipe(player, targetItem, forcedRecipeId);
         CraftingTransaction transaction = calculateTransaction(
                 player,
                 targetItem,
@@ -147,21 +147,23 @@ public class CraftingTaskExecutor {
         return result.key();
     }
 
-    private static CraftingRecipe resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
+    private static @Nullable RecipeHolder<CraftingRecipe> resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
         if (forcedRecipeId != null) {
-            Optional<? extends Recipe<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
-            if (opt.isPresent() && opt.get() instanceof CraftingRecipe cr) {
+            Optional<RecipeHolder<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
+            if (opt.isPresent() && opt.get().value() instanceof CraftingRecipe cr) {
                 if (!cr.isSpecial() && cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
-                    return cr;
+                    @SuppressWarnings("unchecked")
+                    RecipeHolder<CraftingRecipe> holder = (RecipeHolder<CraftingRecipe>) opt.get();
+                    return holder;
                 }
             }
             return null;
         }
-        return CraftingPlanner.getInstance().getResult().getPathMemo().get(targetItem);
+        return CraftingPlanner.getInstance().getResult().getPathHolderMemo().get(targetItem);
     }
 
     private static CraftingTransaction calculateTransaction(ServerPlayer player, Item targetItem, int amount,
-                                                            ResourceLocation forcedRecipeId, CraftingRecipe usedRecipe,
+                                                            ResourceLocation forcedRecipeId, @Nullable RecipeHolder<CraftingRecipe> usedRecipe,
                                                             @Nullable MaterialKey desiredOutputKey,
                                                             @Nullable TargetOutputSpec targetOutputSpec,
                                                             @Nullable List<ItemStack> displayedIngredients,
@@ -180,7 +182,7 @@ public class CraftingTaskExecutor {
                     desiredOutputKey
             );
         }
-        CraftingRecipe recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
+        RecipeHolder<CraftingRecipe> recipeForCalc = (forcedRecipeId != null) ? usedRecipe : null;
         return calculator.calculate(targetItem, amount, true, recipeForCalc, desiredOutputKey);
     }
 
@@ -205,7 +207,7 @@ public class CraftingTaskExecutor {
 
 
     private static boolean reportTopLevelMissingMaterials(ServerPlayer player, int amount,
-                                                          @Nullable CraftingRecipe usedRecipe,
+                                                          @Nullable RecipeHolder<CraftingRecipe> usedRecipe,
                                                           @Nullable TargetOutputSpec targetOutputSpec,
                                                           @Nullable List<ItemStack> displayedIngredients,
                                                           Consumer<Component> msgSender) {
@@ -218,7 +220,7 @@ public class CraftingTaskExecutor {
                     amount
             );
         } else if (usedRecipe != null) {
-            report = calculator.diagnoseTopLevelMissing(usedRecipe, amount);
+            report = calculator.diagnoseTopLevelMissing(usedRecipe.value(), amount);
         } else {
             msgSender.accept(Component.translatable("recursivecraft.msg.no_recipe"));
             return true;

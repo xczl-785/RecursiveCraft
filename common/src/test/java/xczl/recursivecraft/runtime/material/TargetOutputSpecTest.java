@@ -28,17 +28,17 @@ class TargetOutputSpecTest {
         ItemStack template = spec.toTemplateStack();
         assertEquals(Items.POTION, template.getItem());
         assertEquals(1, template.getCount());
-        assertEquals(tag, template.getTag());
-        assertNotSame(tag, template.getTag());
+        assertEquals(tag, ItemStackComponentSupport.copyCustomData(template));
+        assertNotSame(tag, ItemStackComponentSupport.copyCustomData(template));
     }
 
     @Test
     void constructor_withNullTag_shouldExportTemplateStackWithoutTag() {
-        TargetOutputSpec spec = new TargetOutputSpec(Items.STICK, null);
+        TargetOutputSpec spec = new TargetOutputSpec(Items.STICK, (CompoundTag) null);
 
         ItemStack template = spec.toTemplateStack();
         assertEquals(Items.STICK, template.getItem());
-        assertNull(template.getTag());
+        assertNull(ItemStackComponentSupport.copyCustomData(template));
     }
 
     @Test

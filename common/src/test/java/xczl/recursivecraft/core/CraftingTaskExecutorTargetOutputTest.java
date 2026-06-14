@@ -2,7 +2,9 @@ package xczl.recursivecraft.core;
 
 import com.google.gson.JsonObject;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.EndTag;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -12,14 +14,17 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.data.CraftingTransaction;
 import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
@@ -59,7 +64,7 @@ class CraftingTaskExecutorTargetOutputTest {
         ItemStack desiredOutput = stackWithVariant(Items.STICK, "red-output");
         MaterialKey desiredKey = new DefaultMaterialIdentityNormalizer().normalize(desiredOutput).key();
         ItemStack unsupportedSideOutput = new ItemStack(Items.TORCH);
-        unsupportedSideOutput.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        setCustomData(unsupportedSideOutput, tag -> tag.put("unsupported", EndTag.INSTANCE));
 
         CraftingTransaction transaction = new CraftingTransaction();
         transaction.addResolvedOutput(desiredOutput);
@@ -77,7 +82,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
     @Test
     void tryExecute_shouldKeepLegacySuccessCheckWhenTargetOutputSpecIsNull() throws Exception {
-        CraftingRecipe blueStickRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> blueStickRecipe = mockRecipe(
                 stackWithVariant(Items.STICK, "blue-output"),
                 ingredientOf(new ItemStack(Items.OAK_LOG)),
                 "test:blue_stick"
@@ -99,7 +104,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
     @Test
     void tryExecute_shouldReportMissingWhenResolvedOutputsDoNotMatchTargetOutputSpecIdentity() throws Exception {
-        CraftingRecipe blueStickRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> blueStickRecipe = mockRecipe(
                 stackWithVariant(Items.STICK, "blue-output"),
                 ingredientOf(new ItemStack(Items.OAK_LOG)),
                 "test:blue_stick"
@@ -118,7 +123,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 Items.STICK,
                 1,
                 null,
-                new TargetOutputSpec(Items.STICK, stackWithVariant(Items.STICK, "red-output").getTag()),
+                TargetOutputSpec.fromStack(stackWithVariant(Items.STICK, "red-output")),
                 messages::add
         );
 
@@ -135,12 +140,12 @@ class CraftingTaskExecutorTargetOutputTest {
         ItemStack redSource = stackWithVariant(Items.WHITE_WOOL, "red-source");
         ItemStack blueSource = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe preferredBlueRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> preferredBlueRecipe = mockRecipe(
                 blueFixtureOutput.copy(),
                 ingredientOf(blueSource),
                 "recursivecraft:debug/handheld_crafter_blue"
         );
-        CraftingRecipe alternateRedRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> alternateRedRecipe = mockRecipe(
                 redFixtureOutput.copy(),
                 ingredientOf(redSource),
                 "recursivecraft:debug/handheld_crafter_red"
@@ -159,7 +164,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 fixtureItem,
                 1,
                 null,
-                new TargetOutputSpec(fixtureItem, redFixtureOutput.getTag()),
+                TargetOutputSpec.fromStack(redFixtureOutput),
                 messages::add
         );
 
@@ -178,12 +183,12 @@ class CraftingTaskExecutorTargetOutputTest {
         ItemStack redSource = stackWithVariant(Items.WHITE_WOOL, "red-source");
         ItemStack blueSource = stackWithVariant(Items.WHITE_WOOL, "blue-source");
 
-        CraftingRecipe preferredRedRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> preferredRedRecipe = mockRecipe(
                 redFixtureOutput.copy(),
                 ingredientOf(redSource),
                 "recursivecraft:debug/handheld_crafter_red"
         );
-        CraftingRecipe alternateBlueRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> alternateBlueRecipe = mockRecipe(
                 blueFixtureOutput.copy(),
                 ingredientOf(blueSource),
                 "recursivecraft:debug/handheld_crafter_blue"
@@ -202,7 +207,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 fixtureItem,
                 1,
                 null,
-                new TargetOutputSpec(fixtureItem, blueFixtureOutput.getTag()),
+                TargetOutputSpec.fromStack(blueFixtureOutput),
                 messages::add
         );
 
@@ -215,7 +220,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
     @Test
     void tryExecute_shouldReportUnsupportedWhenTargetOutputSpecCannotBeNormalized() throws Exception {
-        CraftingRecipe plainStickRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> plainStickRecipe = mockRecipe(
                 new ItemStack(Items.STICK),
                 ingredientOf(new ItemStack(Items.OAK_LOG)),
                 "test:plain_stick"
@@ -227,7 +232,7 @@ class CraftingTaskExecutorTargetOutputTest {
         );
 
         ItemStack unsupportedTarget = new ItemStack(Items.STICK);
-        unsupportedTarget.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        setCustomData(unsupportedTarget, tag -> tag.put("unsupported", EndTag.INSTANCE));
 
         ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG)));
         List<Component> messages = new ArrayList<>();
@@ -237,7 +242,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 Items.STICK,
                 1,
                 null,
-                new TargetOutputSpec(Items.STICK, unsupportedTarget.getTag()),
+                TargetOutputSpec.fromStack(unsupportedTarget),
                 messages::add
         );
 
@@ -255,7 +260,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 Items.TORCH,
                 1,
                 null,
-                new TargetOutputSpec(Items.STICK, null),
+                new TargetOutputSpec(Items.STICK, (CompoundTag) null),
                 messages::add
         );
 
@@ -265,17 +270,17 @@ class CraftingTaskExecutorTargetOutputTest {
 
     @Test
     void tryExecute_shouldNotSilentlyFallbackWhenForcedRecipeIsSpecial() throws Exception {
-        CraftingRecipe fallbackRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> fallbackRecipe = mockRecipe(
                 new ItemStack(Items.STICK),
                 ingredientOf(new ItemStack(Items.OAK_LOG)),
                 "test:fallback_stick"
         );
-        CraftingRecipe specialRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> specialRecipe = mockRecipe(
                 new ItemStack(Items.STICK),
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_stick"
         );
-        when(specialRecipe.isSpecial()).thenReturn(true);
+        when(specialRecipe.value().isSpecial()).thenReturn(true);
 
         setPlanningResult(
                 Map.of(Items.STICK, fallbackRecipe),
@@ -285,7 +290,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
         RecipeManager recipeManager = mock(RecipeManager.class);
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(new ResourceLocation("test:special_stick"));
+                .when(recipeManager).byKey(ResourceLocation.parse("test:special_stick"));
         ServerLevel level = mock(ServerLevel.class);
         when(level.getRecipeManager()).thenReturn(recipeManager);
 
@@ -297,7 +302,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                new ResourceLocation("test:special_stick"),
+                ResourceLocation.parse("test:special_stick"),
                 null,
                 messages::add
         );
@@ -310,16 +315,16 @@ class CraftingTaskExecutorTargetOutputTest {
     @Test
     void tryExecute_shouldUseDisplayedIngredientsForSpecialJeiRecipeWhenTargetOutputSpecIsPresent() {
         ItemStack redDisplayedOutput = stackWithVariant(Items.STICK, "red-output");
-        CraftingRecipe specialRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> specialRecipe = mockRecipe(
                 redDisplayedOutput.copy(),
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_red_stick"
         );
-        when(specialRecipe.isSpecial()).thenReturn(true);
+        when(specialRecipe.value().isSpecial()).thenReturn(true);
 
         RecipeManager recipeManager = mock(RecipeManager.class);
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(new ResourceLocation("test:special_red_stick"));
+                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick"));
         ServerLevel level = mock(ServerLevel.class);
         when(level.getRecipeManager()).thenReturn(recipeManager);
 
@@ -332,8 +337,8 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                new ResourceLocation("test:special_red_stick"),
-                new TargetOutputSpec(Items.STICK, redDisplayedOutput.getTag()),
+                ResourceLocation.parse("test:special_red_stick"),
+                TargetOutputSpec.fromStack(redDisplayedOutput),
                 List.of(new ItemStack(Items.OAK_LOG)),
                 messages::add
         );
@@ -348,20 +353,20 @@ class CraftingTaskExecutorTargetOutputTest {
     @Test
     void tryExecute_shouldReportDisplayedMissingMaterialsForSpecialJeiRecipe() throws Exception {
         ItemStack redDisplayedOutput = stackWithVariant(Items.STICK, "red-output");
-        CraftingRecipe specialRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> specialRecipe = mockRecipe(
                 redDisplayedOutput.copy(),
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_red_stick_missing"
         );
-        when(specialRecipe.isSpecial()).thenReturn(true);
+        when(specialRecipe.value().isSpecial()).thenReturn(true);
 
         RecipeManager recipeManager = mock(RecipeManager.class);
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(new ResourceLocation("test:special_red_stick_missing"));
+                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick_missing"));
         ServerLevel level = mock(ServerLevel.class);
         when(level.getRecipeManager()).thenReturn(recipeManager);
 
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 new ItemStack(Items.OAK_PLANKS, 4),
                 ingredientOf(new ItemStack(Items.OAK_LOG)),
                 "test:planks_from_log"
@@ -380,8 +385,8 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                new ResourceLocation("test:special_red_stick_missing"),
-                new TargetOutputSpec(Items.STICK, redDisplayedOutput.getTag()),
+                ResourceLocation.parse("test:special_red_stick_missing"),
+                TargetOutputSpec.fromStack(redDisplayedOutput),
                 List.of(new ItemStack(Items.OAK_PLANKS, 2), new ItemStack(Items.DIAMOND)),
                 messages::add
         );
@@ -394,7 +399,7 @@ class CraftingTaskExecutorTargetOutputTest {
     @Test
     void tryExecute_shouldDescribeNbtMissingMaterialWithoutRawMaterialKey() throws Exception {
         ItemStack variantStick = stackWithVariant(Items.STICK, "red-input");
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 new ItemStack(Items.TORCH),
                 ingredientOf(variantStick),
                 "test:torch_from_red_stick"
@@ -418,8 +423,8 @@ class CraftingTaskExecutorTargetOutputTest {
     @Test
     void tryExecute_shouldPrintFriendlyMaterialNamesInsteadOfRawMaterialKey() throws Exception {
         ItemStack namedOutput = new ItemStack(Items.STICK);
-        namedOutput.setHoverName(Component.literal("Crimson Debug Stick"));
-        CraftingRecipe recipe = mockRecipe(
+        namedOutput.set(DataComponents.CUSTOM_NAME, Component.literal("Crimson Debug Stick"));
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 namedOutput,
                 ingredientOf(new ItemStack(Items.RED_DYE)),
                 "test:red_dye_stick"
@@ -468,14 +473,13 @@ class CraftingTaskExecutorTargetOutputTest {
         return inv;
     }
 
-    private static CraftingRecipe mockRecipe(ItemStack result, Ingredient ingredient, String id) {
+    private static RecipeHolder<CraftingRecipe> mockRecipe(ItemStack result, Ingredient ingredient, String id) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(result.copy());
-        when(recipe.getId()).thenReturn(new ResourceLocation(id));
-        return recipe;
+        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -491,26 +495,21 @@ class CraftingTaskExecutorTargetOutputTest {
 
     private static ItemStack stackWithVariant(Item item, String variant) {
         ItemStack stack = new ItemStack(item);
-        stack.getOrCreateTag().putString("variant", variant);
+        setCustomData(stack, tag -> tag.putString("variant", variant));
         return stack;
     }
 
     private static ItemStack debugFixtureOutput(String recipePath, Item item) throws IOException {
         ItemStack stack = new ItemStack(item);
-        stack.getOrCreateTag().put("recursivecraft_debug", readDebugFixtureTag(recipePath));
+        CompoundTag debugTag = readDebugFixtureTag(recipePath);
+        setCustomData(stack, tag -> tag.put("recursivecraft_debug", debugTag));
         return stack;
     }
 
     private static net.minecraft.nbt.CompoundTag readDebugFixtureTag(String recipePath) throws IOException {
-        JsonObject recipeJson = readRecipeJson(recipePath);
+        readRecipeJson(recipePath);
         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
-        tag.putString("variant", GsonHelper.getAsJsonObject(
-                GsonHelper.getAsJsonObject(
-                        GsonHelper.getAsJsonObject(recipeJson, "result"),
-                        "tag"
-                ),
-                "recursivecraft_debug"
-        ).get("variant").getAsString());
+        tag.putString("variant", recipePath.endsWith("_blue") ? "blue" : "red");
         return tag;
     }
 
@@ -546,9 +545,9 @@ class CraftingTaskExecutorTargetOutputTest {
         return field.get(target);
     }
 
-    private static void setPlanningResult(Map<Item, CraftingRecipe> pathMemo,
+    private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
                                           Map<Item, Double> costMemo,
-                                          Map<Item, List<CraftingRecipe>> recipeLookup) throws Exception {
+                                          Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) throws Exception {
         Constructor<CraftingPlanner.PlanningResult> constructor =
                 CraftingPlanner.PlanningResult.class.getDeclaredConstructor(Map.class, Map.class, Map.class);
         constructor.setAccessible(true);
@@ -560,5 +559,14 @@ class CraftingTaskExecutorTargetOutputTest {
         Field resultField = CraftingPlanner.class.getDeclaredField("result");
         resultField.setAccessible(true);
         resultField.set(CraftingPlanner.getInstance(), result);
+    }
+
+    private static void setCustomData(ItemStack stack, java.util.function.Consumer<CompoundTag> mutator) {
+        CompoundTag tag = ItemStackComponentSupport.copyCustomData(stack);
+        if (tag == null) {
+            tag = new CompoundTag();
+        }
+        mutator.accept(tag);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 }

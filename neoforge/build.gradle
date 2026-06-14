@@ -6,7 +6,7 @@ evaluationDependsOn(":common")
 
 architectury {
     platformSetupLoomIde()
-    fabric()
+    neoForge()
 }
 
 loom {
@@ -18,25 +18,47 @@ configurations {
     shadowCommon // Don't use shadow from the shadow plugin since it *excludes* files.
     compileClasspath.extendsFrom common
     runtimeClasspath.extendsFrom common
-    developmentFabric.extendsFrom common
+    developmentNeoForge.extendsFrom common
 }
 
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
-    modApi "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+    def localJeiApi = file("local-libs/jei-1.21.1-neoforge-api.jar")
+    def localJeiRuntime = file("local-libs/jei-1.21.1-neoforge.jar")
+    def localModsDir = file("local-mods")
+
+    neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
     // Remove the next line if you don't want to depend on the API
-    modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
+    modApi "dev.architectury:architectury-neoforge:${rootProject.architectury_version}"
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionNeoForge")) { transitive = false }
 
-    include 'com.belerweb:pinyin4j:2.5.1'
+    // pinyin4j依赖
+    // 1. 编译时需要 (让代码不爆红)
     implementation 'com.belerweb:pinyin4j:2.5.1'
+    // 2. [关键] 开发环境运行时需要 (防止 NoClassDefFoundError)
+    runtimeOnly 'com.belerweb:pinyin4j:2.5.1'
+    // 3. 打包时需要 (把库塞进 Jar 包里)
+    shadowCommon 'com.belerweb:pinyin4j:2.5.1'
 
-    // [新增] JEI Fabric 依赖
-    compileOnly "mezz.jei:jei-1.21.1-fabric-api:19.27.0.340"
-    // 开发环境运行时加载 JEI，方便测试
-    modLocalRuntime "mezz.jei:jei-1.21.1-fabric:19.27.0.340"
+    // [新增] JEI NeoForge 依赖
+    if (localJeiApi.exists()) {
+        compileOnly files(localJeiApi)
+    } else {
+        compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.27.0.340"
+    }
+
+    if (localJeiRuntime.exists()) {
+        // 本地 jar 可规避远端 Maven/TLS 问题，同时保留仓库默认可构建性
+        modLocalRuntime files(localJeiRuntime)
+    } else {
+        modLocalRuntime "mezz.jei:jei-1.21.1-neoforge:19.27.0.340"
+    }
+
+    if (localModsDir.exists()) {
+        // 外部测试模组通过本地 runtime 依赖接入，让 Loom 在 dev runtime 中先完成 remap
+        modLocalRuntime fileTree(dir: localModsDir, include: ["*.jar"])
+    }
 }
 
 processResources {
@@ -46,9 +68,7 @@ processResources {
             "version": rootProject.mod_version,
             "mod_id": rootProject.mod_id,
             "mod_name": rootProject.mod_name,
-            "mod_name_json": rootProject.mod_name_json,
             "mod_description": rootProject.mod_description,
-            "mod_description_json": rootProject.mod_description_json,
             "mod_license": rootProject.mod_license,
             "mod_authors": rootProject.mod_authors,
             "mod_homepage": rootProject.mod_homepage,
@@ -57,12 +77,13 @@ processResources {
 
     inputs.properties replaceProperties
 
-    filesMatching("fabric.mod.json") {
+    filesMatching("META-INF/mods.toml") {
         expand replaceProperties
     }
 }
 
 shadowJar {
+    exclude "fabric.mod.json"
     exclude "architectury.common.json"
 
     configurations = [project.configurations.shadowCommon]
@@ -70,7 +91,6 @@ shadowJar {
 }
 
 remapJar {
-    injectAccessWidener = true
     input.set shadowJar.archiveFile
     dependsOn shadowJar
 }
@@ -83,7 +103,7 @@ components.java {
 
 publishing {
     publications {
-        mavenFabric(MavenPublication) {
+        mavenNeoForge(MavenPublication) {
             artifactId = rootProject.archives_base_name + "-" + project.name
             from components.java
         }

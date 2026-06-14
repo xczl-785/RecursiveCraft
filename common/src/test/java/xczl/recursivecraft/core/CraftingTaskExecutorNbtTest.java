@@ -1,7 +1,9 @@
 package xczl.recursivecraft.core;
 
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.EndTag;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -9,11 +11,14 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
 
@@ -44,7 +49,7 @@ class CraftingTaskExecutorNbtTest {
 
     @Test
     void tryExecute_shouldSurfaceMissingToUserWhenPlannerRecipeCannotBeSatisfied() throws Exception {
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:missing_log");
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:missing_log");
         setPlanningResult(
                 Map.of(Items.TORCH, recipe),
                 Map.of(Items.TORCH, 1.0d, Items.OAK_LOG, 1.0d),
@@ -65,8 +70,8 @@ class CraftingTaskExecutorNbtTest {
 
     @Test
     void tryExecute_shouldReportOnlyUnsatisfiedTopLevelMaterialWhenSiblingCanBeCrafted() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
-        CraftingRecipe torchRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
+        RecipeHolder<CraftingRecipe> torchRecipe = mockRecipeWithIngredients(
                 new ItemStack(Items.TORCH, 1),
                 "test:torch_from_planks_and_diamond",
                 ingredientOf(new ItemStack(Items.OAK_PLANKS)),
@@ -90,14 +95,14 @@ class CraftingTaskExecutorNbtTest {
 
     @Test
     void tryExecute_shouldReportSharedResourceShortageAsUnsatisfiedTopLevelMaterial() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
-        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(new ItemStack(Items.OAK_PLANKS, 4), ingredientOf(new ItemStack(Items.OAK_LOG)), "test:planks_from_log");
+        RecipeHolder<CraftingRecipe> stickRecipe = mockRecipeWithIngredients(
                 new ItemStack(Items.STICK, 4),
                 "test:sticks_from_planks",
                 ingredientOf(new ItemStack(Items.OAK_PLANKS)),
                 ingredientOf(new ItemStack(Items.OAK_PLANKS))
         );
-        CraftingRecipe axeRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> axeRecipe = mockRecipeWithIngredients(
                 new ItemStack(Items.WOODEN_AXE, 1),
                 "test:axe_from_planks_and_sticks",
                 ingredientOf(new ItemStack(Items.OAK_PLANKS)),
@@ -125,8 +130,8 @@ class CraftingTaskExecutorNbtTest {
     @Test
     void tryExecute_shouldSurfaceUnsupportedToUserWhenMaterialIdentityIsUnsupported() throws Exception {
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_stick");
+        setCustomData(unsupportedStick, tag -> tag.put("unsupported", EndTag.INSTANCE));
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(unsupportedStick), "test:unsupported_stick");
         setPlanningResult(
                 Map.of(Items.TORCH, recipe),
                 Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
@@ -157,8 +162,8 @@ class CraftingTaskExecutorNbtTest {
     @Test
     void tryExecute_shouldSurfaceMissingToUserWhenRevalidateFailsAfterPlanning() throws Exception {
         ItemStack redStick = new ItemStack(Items.STICK, 1);
-        redStick.getOrCreateTag().putString("variant", "red");
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_revalidate");
+        setCustomData(redStick, tag -> tag.putString("variant", "red"));
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_revalidate");
         setPlanningResult(
                 Map.of(Items.TORCH, recipe),
                 Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
@@ -186,8 +191,8 @@ class CraftingTaskExecutorNbtTest {
     @Test
     void tryExecute_shouldSurfaceMissingToUserWhenConsumeFailsAfterRevalidate() throws Exception {
         ItemStack redStick = new ItemStack(Items.STICK, 1);
-        redStick.getOrCreateTag().putString("variant", "red");
-        CraftingRecipe recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_consume");
+        setCustomData(redStick, tag -> tag.putString("variant", "red"));
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(new ItemStack(Items.TORCH, 1), ingredientOf(redStick), "test:red_stick_consume");
         setPlanningResult(
                 Map.of(Items.TORCH, recipe),
                 Map.of(Items.TORCH, 1.0d, Items.STICK, 1.0d),
@@ -229,11 +234,11 @@ class CraftingTaskExecutorNbtTest {
         return inv;
     }
 
-    private static CraftingRecipe mockRecipe(ItemStack result, Ingredient ingredient, String id) {
+    private static RecipeHolder<CraftingRecipe> mockRecipe(ItemStack result, Ingredient ingredient, String id) {
         return mockRecipeWithIngredients(result, id, ingredient);
     }
 
-    private static CraftingRecipe mockRecipeWithIngredients(ItemStack result, String id, Ingredient... recipeIngredients) {
+    private static RecipeHolder<CraftingRecipe> mockRecipeWithIngredients(ItemStack result, String id, Ingredient... recipeIngredients) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         for (Ingredient ingredient : recipeIngredients) {
@@ -241,8 +246,7 @@ class CraftingTaskExecutorNbtTest {
         }
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(result.copy());
-        when(recipe.getId()).thenReturn(new ResourceLocation(id));
-        return recipe;
+        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -256,9 +260,9 @@ class CraftingTaskExecutorNbtTest {
         return ingredient;
     }
 
-    private static void setPlanningResult(Map<Item, CraftingRecipe> pathMemo,
+    private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
                                           Map<Item, Double> costMemo,
-                                          Map<Item, List<CraftingRecipe>> recipeLookup) throws Exception {
+                                          Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) throws Exception {
         Constructor<CraftingPlanner.PlanningResult> constructor =
                 CraftingPlanner.PlanningResult.class.getDeclaredConstructor(Map.class, Map.class, Map.class);
         constructor.setAccessible(true);
@@ -270,5 +274,14 @@ class CraftingTaskExecutorNbtTest {
         Field resultField = CraftingPlanner.class.getDeclaredField("result");
         resultField.setAccessible(true);
         resultField.set(CraftingPlanner.getInstance(), result);
+    }
+
+    private static void setCustomData(ItemStack stack, java.util.function.Consumer<CompoundTag> mutator) {
+        CompoundTag tag = ItemStackComponentSupport.copyCustomData(stack);
+        if (tag == null) {
+            tag = new CompoundTag();
+        }
+        mutator.accept(tag);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 }

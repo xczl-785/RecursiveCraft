@@ -5,6 +5,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.data.CraftingTransaction;
@@ -101,12 +102,12 @@ public class TransactionCalculator {
     /**
      * 计算合成事务 (支持强制指定首层配方)
      */
-    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, @Nullable CraftingRecipe forcedRecipe) {
+    public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget, @Nullable RecipeHolder<CraftingRecipe> forcedRecipe) {
         return calculate(target, amount, isFinalTarget, forcedRecipe, null);
     }
 
     public CraftingTransaction calculate(Item target, int amount, boolean isFinalTarget,
-                                         @Nullable CraftingRecipe forcedRecipe,
+                                         @Nullable RecipeHolder<CraftingRecipe> forcedRecipe,
                                          @Nullable MaterialKey desiredOutputKey) {
         VirtualInventorySnapshot playerInventorySnapshot = snapshotPlayerInventory();
         CalcContext context = new CalcContext(playerInventorySnapshot, playerInventorySnapshot, new HashSet<>());
@@ -259,7 +260,7 @@ public class TransactionCalculator {
 
     private AttemptResult calculateRecursive(Item target, int amount, boolean isFinalTarget,
                                              CalcContext context, int debugDepth,
-                                             CraftingRecipe forcedRecipe, MaterialKey desiredKey) {
+                                             @Nullable RecipeHolder<CraftingRecipe> forcedRecipe, MaterialKey desiredKey) {
         CraftingTransaction currentTransaction = new CraftingTransaction();
         MaterialRequestKey requestKey = requestKey(target, desiredKey);
 
@@ -289,20 +290,22 @@ public class TransactionCalculator {
     }
 
     private AttemptResult findAndApplyBestRecipe(Item target, MaterialKey desiredKey, int amountToCraft,
-                                                 boolean isFinalTarget, CalcContext context, int debugDepth, CraftingRecipe forcedRecipe) {
+                                                 boolean isFinalTarget, CalcContext context, int debugDepth,
+                                                 @Nullable RecipeHolder<CraftingRecipe> forcedRecipe) {
         String indent = "  ".repeat(debugDepth);
-        List<CraftingRecipe> candidates = collectCandidateRecipes(target, forcedRecipe, indent);
+        List<RecipeHolder<CraftingRecipe>> candidates = collectCandidateRecipes(target, forcedRecipe, indent);
         if (candidates.isEmpty()) {
             return missing(createNeedOnlyTransaction(target, amountToCraft, desiredKey));
         }
 
-        CraftingRecipe theoreticalBest = planningResult.getPathMemo().get(target);
+        RecipeHolder<CraftingRecipe> theoreticalBest = planningResult.getPathHolderMemo().get(target);
         sortCandidates(candidates, theoreticalBest, desiredKey, context.virtualInventory);
         return tryRecipeCandidates(candidates, theoreticalBest, target, desiredKey, amountToCraft, isFinalTarget, context, debugDepth, forcedRecipe, indent);
     }
 
-    private AttemptResult simulateRecipe(CraftingRecipe recipe, Item target, MaterialKey desiredKey,
+    private AttemptResult simulateRecipe(RecipeHolder<CraftingRecipe> recipeHolder, Item target, MaterialKey desiredKey,
                                          int amountToCraft, boolean isFinalTarget, CalcContext context, int debugDepth) {
+        CraftingRecipe recipe = recipeHolder.value();
         CraftingTransaction tx = new CraftingTransaction();
         NormalizationResult outputIdentity = normalizeRecipeOutput(recipe);
         if (outputIdentity.kind() != NormalizationKind.NORMALIZED) {
@@ -488,20 +491,20 @@ public class TransactionCalculator {
         return left.toString().compareTo(right.toString());
     }
 
-    private void sortCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest,
+    private void sortCandidates(List<RecipeHolder<CraftingRecipe>> candidates, RecipeHolder<CraftingRecipe> theoreticalBest,
                                 MaterialKey desiredKey, VirtualInventorySnapshot virtualInventory) {
         if (candidates.size() <= 1) {
             return;
         }
         candidates.sort((left, right) -> {
-            boolean leftMatchesIdentity = recipeMatchesDesiredIdentity(left, desiredKey);
-            boolean rightMatchesIdentity = recipeMatchesDesiredIdentity(right, desiredKey);
+            boolean leftMatchesIdentity = recipeMatchesDesiredIdentity(left.value(), desiredKey);
+            boolean rightMatchesIdentity = recipeMatchesDesiredIdentity(right.value(), desiredKey);
             if (leftMatchesIdentity != rightMatchesIdentity) {
                 return leftMatchesIdentity ? -1 : 1;
             }
 
-            boolean leftShallow = checkShallowRecipe(left, virtualInventory);
-            boolean rightShallow = checkShallowRecipe(right, virtualInventory);
+            boolean leftShallow = checkShallowRecipe(left.value(), virtualInventory);
+            boolean rightShallow = checkShallowRecipe(right.value(), virtualInventory);
             if (leftShallow != rightShallow) {
                 return leftShallow ? -1 : 1;
             }
@@ -515,14 +518,15 @@ public class TransactionCalculator {
         });
     }
 
-    private AttemptResult tryRecipeCandidates(List<CraftingRecipe> candidates, CraftingRecipe theoreticalBest,
+    private AttemptResult tryRecipeCandidates(List<RecipeHolder<CraftingRecipe>> candidates,
+                                              RecipeHolder<CraftingRecipe> theoreticalBest,
                                               Item target, MaterialKey desiredKey, int amountToCraft,
                                               boolean isFinalTarget, CalcContext context, int debugDepth,
-                                              CraftingRecipe forcedRecipe, String indent) {
+                                              @Nullable RecipeHolder<CraftingRecipe> forcedRecipe, String indent) {
         CraftingTransaction bestFailure = null;
         List<RequestLevelKind> candidateKinds = new ArrayList<>();
 
-        for (CraftingRecipe recipe : candidates) {
+        for (RecipeHolder<CraftingRecipe> recipe : candidates) {
             CalcContext snapshotContext = cloneContext(context);
             AttemptResult trial = simulateRecipe(recipe, target, desiredKey, amountToCraft, isFinalTarget, snapshotContext, debugDepth);
 
@@ -599,7 +603,8 @@ public class TransactionCalculator {
     }
 
     private boolean checkShallowItem(Item item, VirtualInventorySnapshot virtualInventory) {
-        return checkShallowRecipe(planningResult.getPathMemo().get(item), virtualInventory);
+        RecipeHolder<CraftingRecipe> recipeHolder = planningResult.getPathHolderMemo().get(item);
+        return recipeHolder != null && checkShallowRecipe(recipeHolder.value(), virtualInventory);
     }
 
     private int consumeFromVirtualInventory(Item target, MaterialKey desiredKey, int amount, boolean isFinalTarget,
@@ -638,12 +643,14 @@ public class TransactionCalculator {
         return consumed;
     }
 
-    private List<CraftingRecipe> collectCandidateRecipes(Item target, CraftingRecipe forcedRecipe, String indent) {
+    private List<RecipeHolder<CraftingRecipe>> collectCandidateRecipes(Item target,
+                                                                       @Nullable RecipeHolder<CraftingRecipe> forcedRecipe,
+                                                                       String indent) {
         if (forcedRecipe != null) {
-            RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.getId());
+            RecursiveCraft.LOGGER.debug("{} [Force] Applying forced recipe: {}", indent, forcedRecipe.id());
             return Collections.singletonList(forcedRecipe);
         }
-        return new ArrayList<>(planningResult.getRecipesFor(target));
+        return new ArrayList<>(planningResult.getRecipeHoldersFor(target));
     }
 
     private CraftingTransaction createNeedOnlyTransaction(Item target, int amountToCraft, MaterialKey desiredKey) {
@@ -764,10 +771,10 @@ public class TransactionCalculator {
         return builder.toString();
     }
 
-    private void logCalculationStart(Item target, int amount, CraftingRecipe forcedRecipe) {
+    private void logCalculationStart(Item target, int amount, @Nullable RecipeHolder<CraftingRecipe> forcedRecipe) {
         RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
         if (forcedRecipe != null) {
-            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.getId());
+            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.id());
         } else {
             RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
         }

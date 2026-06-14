@@ -3,14 +3,15 @@ package xczl.recursivecraft.compat.jei;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.core.RegistryAccess;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.client.CraftableTarget;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.lang.reflect.Method;
@@ -56,16 +57,17 @@ public final class RecursiveCraftJeiRuntime {
         jeiRuntime.getRecipeManager()
                 .createRecipeLookup(RecipeTypes.CRAFTING)
                 .get()
-                .forEach(recipe -> collectTargetsFromRecipe(recipe, plannerItems, deduped));
+                .forEach(recipeHolder -> collectTargetsFromRecipe(recipeHolder, plannerItems, deduped));
         return List.copyOf(deduped.values());
     }
 
-    private static void collectTargetsFromRecipe(Object recipeObject, Set<Item> plannerItems, Map<String, CraftableTarget> deduped) {
-        if (!(recipeObject instanceof CraftingRecipe recipe)) {
-            return;
-        }
+    private static void collectTargetsFromRecipe(RecipeHolder<CraftingRecipe> recipeHolder,
+                                                 Set<Item> plannerItems,
+                                                 Map<String, CraftableTarget> deduped) {
+        CraftingRecipe recipe = recipeHolder.value();
+        ResourceLocation recipeId = recipeHolder.id();
 
-        if (collectGroupedVariants(recipeObject, recipe.getId(), plannerItems, deduped)) {
+        if (collectGroupedVariants(recipe, recipeId, plannerItems, deduped)) {
             return;
         }
 
@@ -76,7 +78,7 @@ public final class RecursiveCraftJeiRuntime {
 
         deduped.putIfAbsent(
                 targetKey(result),
-                new CraftableTarget(result, recipe.getId(), toTargetOutputSpec(result), null)
+                new CraftableTarget(result, recipeId, toTargetOutputSpec(result), null)
         );
     }
 
@@ -120,16 +122,15 @@ public final class RecursiveCraftJeiRuntime {
     }
 
     private static @Nullable TargetOutputSpec toTargetOutputSpec(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        if (tag == null) {
+        if (stack.getComponentsPatch().isEmpty()) {
             return null;
         }
-        return new TargetOutputSpec(stack.getItem(), tag);
+        return TargetOutputSpec.fromStack(stack);
     }
 
     private static String targetKey(ItemStack stack) {
         ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return itemId + "|" + stack.getTag();
+        return itemId + "|" + ItemStackComponentSupport.componentKey(stack);
     }
 
     private static List<ItemStack> copyStacks(Collection<ItemStack> stacks) {

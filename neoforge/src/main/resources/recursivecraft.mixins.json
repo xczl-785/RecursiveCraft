@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "xczl.recursivecraft.mixin",
+  "package": "xczl.recursivecraft.mixin.neoforge",
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "client": [

@@ -4,7 +4,10 @@ import dev.architectury.networking.NetworkManager;
 import io.netty.buffer.Unpooled;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
@@ -38,9 +41,9 @@ class C2SExecuteCraftPacketTest {
 
     @Test
     void decode_shouldPreserveLegacyShapeWhenTargetOutputSpecIsAbsent() {
-        ResourceLocation forcedRecipeId = new ResourceLocation("test", "legacy");
+        ResourceLocation forcedRecipeId = ResourceLocation.parse("test:legacy");
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
-        buf.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, Items.TORCH);
+        buf.writeById(net.minecraft.core.registries.BuiltInRegistries.ITEM::getId, Items.TORCH);
         buf.writeInt(4);
         buf.writeBoolean(true);
         buf.writeResourceLocation(forcedRecipeId);
@@ -55,7 +58,7 @@ class C2SExecuteCraftPacketTest {
 
     @Test
     void decode_shouldPreserveTargetOutputSpecTagPayload() {
-        ResourceLocation forcedRecipeId = new ResourceLocation("test", "tagged");
+        ResourceLocation forcedRecipeId = ResourceLocation.parse("test:tagged");
         CompoundTag tag = new CompoundTag();
         tag.putString("Potion", "minecraft:strong_healing");
         C2SExecuteCraftPacket packet = new C2SExecuteCraftPacket(
@@ -116,7 +119,7 @@ class C2SExecuteCraftPacketTest {
                 Items.TORCH,
                 1,
                 null,
-                new TargetOutputSpec(Items.STICK, null)
+                new TargetOutputSpec(Items.STICK, (CompoundTag) null)
         );
 
         try (MockedStatic<CraftingTaskExecutor> executor = Mockito.mockStatic(CraftingTaskExecutor.class)) {
@@ -135,7 +138,10 @@ class C2SExecuteCraftPacketTest {
     }
 
     private static C2SExecuteCraftPacket decode(C2SExecuteCraftPacket packet) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(),
+                RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY)
+        );
         packet.encode(buf);
         return C2SExecuteCraftPacket.decode(buf);
     }

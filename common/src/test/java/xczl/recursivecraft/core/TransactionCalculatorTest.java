@@ -3,6 +3,7 @@ package xczl.recursivecraft.core;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.EndTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -10,10 +11,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.data.CraftingTransaction;
+import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import java.lang.reflect.Constructor;
@@ -38,9 +41,8 @@ class TransactionCalculatorTest {
 
     @BeforeEach
     void resetPlannerCaches() {
-        // PlanningResult 现在是不可变的，测试中通过反射重置为 EMPTY
         try {
-            java.lang.reflect.Field resultField = CraftingPlanner.class.getDeclaredField("result");
+            Field resultField = CraftingPlanner.class.getDeclaredField("result");
             resultField.setAccessible(true);
             resultField.set(CraftingPlanner.getInstance(), CraftingPlanner.PlanningResult.EMPTY);
         } catch (Exception e) {
@@ -53,7 +55,7 @@ class TransactionCalculatorTest {
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
@@ -75,7 +77,7 @@ class TransactionCalculatorTest {
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
-        CraftingRecipe cycleRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> cycleRecipe = mockRecipe(
                 Items.STICK, 1,
                 Ingredient.of(Items.STICK),
                 "test:stick_from_stick"
@@ -90,7 +92,7 @@ class TransactionCalculatorTest {
         Inventory inv = mockInventory(new ItemStack(Items.DIORITE, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.STICK, 1,
                 Ingredient.of(Items.COBBLESTONE, Items.DIORITE),
                 "test:stick_from_stone_options"
@@ -107,7 +109,7 @@ class TransactionCalculatorTest {
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.STICK, 1,
                 Ingredient.of(Items.OAK_LOG),
                 "test:stick_from_log"
@@ -120,18 +122,18 @@ class TransactionCalculatorTest {
 
     @Test
     void calculate_shouldUseCraftedIntermediateMaterialsWithoutRequiringThemInPlayerInventory() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
         );
-        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> stickRecipe = mockRecipeWithIngredients(
                 Items.STICK, 4,
                 "test:sticks_from_planks",
                 Ingredient.of(Items.OAK_PLANKS),
                 Ingredient.of(Items.OAK_PLANKS)
         );
-        CraftingRecipe axeRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> axeRecipe = mockRecipeWithIngredients(
                 Items.WOODEN_AXE, 1,
                 "test:wooden_axe",
                 Ingredient.of(Items.OAK_PLANKS),
@@ -161,7 +163,7 @@ class TransactionCalculatorTest {
     void calculate_shouldTreatDefaultDamageTagAsPlainInventoryMaterial() {
         ItemStack plainLog = new ItemStack(Items.OAK_LOG, 1);
         ItemStack ingredientLog = stackWithDefaultDamageTag(Items.OAK_LOG);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(ingredientLog),
                 "test:planks_from_log_with_default_damage"
@@ -178,36 +180,34 @@ class TransactionCalculatorTest {
         });
     }
 
-
     @Test
     void diagnoseTopLevelMissing_shouldReportMissingFirstLevelBaseMaterial() {
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
                 Ingredient.of(Items.OAK_LOG),
                 "test:torch_from_log"
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertFalse(report.unsupported());
         assertEquals(1, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
         assertTrue(report.missingMaterials().keySet().stream().anyMatch(key -> key.item() == Items.OAK_LOG));
     }
 
-
     @Test
     void diagnoseTopLevelMissing_shouldReturnEmptyWhenFirstLevelBaseMaterialIsAvailable() {
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
                 Ingredient.of(Items.OAK_LOG),
                 "test:torch_from_available_log"
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertFalse(report.unsupported());
         assertTrue(report.missingMaterials().isEmpty());
@@ -215,7 +215,7 @@ class TransactionCalculatorTest {
 
     @Test
     void diagnoseTopLevelMissing_shouldNotReportFirstLevelMaterialCraftableFromInventory() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
@@ -227,14 +227,14 @@ class TransactionCalculatorTest {
         );
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipeWithIngredients(
                 Items.TORCH, 1,
                 "test:torch_from_planks_and_diamond",
                 Ingredient.of(Items.OAK_PLANKS),
                 Ingredient.of(Items.DIAMOND)
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertFalse(report.unsupported());
         assertEquals(1, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
@@ -244,12 +244,12 @@ class TransactionCalculatorTest {
 
     @Test
     void diagnoseTopLevelMissing_shouldAttributeSharedResourceShortageToUnsatisfiedFirstLevelMaterial() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
         );
-        CraftingRecipe stickRecipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> stickRecipe = mockRecipeWithIngredients(
                 Items.STICK, 4,
                 "test:sticks_from_planks",
                 Ingredient.of(Items.OAK_PLANKS),
@@ -262,7 +262,7 @@ class TransactionCalculatorTest {
         );
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipeWithIngredients(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipeWithIngredients(
                 Items.WOODEN_AXE, 1,
                 "test:axe_from_planks_and_sticks",
                 Ingredient.of(Items.OAK_PLANKS),
@@ -272,25 +272,24 @@ class TransactionCalculatorTest {
                 Ingredient.of(Items.STICK)
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertFalse(report.unsupported());
         assertEquals(2, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
         assertTrue(report.missingMaterials().keySet().stream().allMatch(key -> key.item() == Items.STICK));
     }
 
-
     @Test
     void diagnoseTopLevelMissing_shouldMultiplyMissingMaterialsByRecipeRuns() {
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 2,
                 Ingredient.of(Items.DIAMOND),
                 "test:two_torches_from_diamond"
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 5);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 5);
 
         assertFalse(report.unsupported());
         assertEquals(3, report.missingMaterials().values().stream().mapToInt(Integer::intValue).sum());
@@ -299,7 +298,7 @@ class TransactionCalculatorTest {
 
     @Test
     void diagnoseTopLevelMissing_shouldSatisfyMultiCandidateIngredientWhenAnyOptionIsCraftable() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
@@ -311,13 +310,13 @@ class TransactionCalculatorTest {
         );
         Inventory inv = mockInventory(new ItemStack(Items.OAK_LOG, 1));
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
                 Ingredient.of(Items.DIAMOND, Items.OAK_PLANKS),
                 "test:torch_from_diamond_or_planks"
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertFalse(report.unsupported());
         assertTrue(report.missingMaterials().isEmpty());
@@ -326,16 +325,16 @@ class TransactionCalculatorTest {
     @Test
     void diagnoseTopLevelMissing_shouldReturnUnsupportedForUnsupportedFirstLevelIngredient() {
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        applyCustomData(unsupportedStick, tagWithEntry("unsupported", EndTag.INSTANCE));
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
                 Ingredient.of(unsupportedStick),
                 "test:torch_from_unsupported_stick"
         );
 
-        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe, 1);
+        TransactionCalculator.TopLevelMissingReport report = calculator.diagnoseTopLevelMissing(recipe.value(), 1);
 
         assertTrue(report.unsupported());
         assertTrue(report.missingMaterials().isEmpty());
@@ -344,7 +343,7 @@ class TransactionCalculatorTest {
     @Test
     void diagnoseJeiDisplayedTopLevelMissing_shouldReturnUnsupportedForUnsupportedDisplayedIngredient() {
         ItemStack unsupportedStick = new ItemStack(Items.STICK);
-        unsupportedStick.getOrCreateTag().put("unsupported", EndTag.INSTANCE);
+        applyCustomData(unsupportedStick, tagWithEntry("unsupported", EndTag.INSTANCE));
         Inventory inv = mockInventory();
         TransactionCalculator calculator = new TransactionCalculator(inv);
 
@@ -360,7 +359,7 @@ class TransactionCalculatorTest {
 
     @Test
     void diagnoseJeiDisplayedTopLevelMissing_shouldUseDisplayedStackCounts() throws Exception {
-        CraftingRecipe planksRecipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
                 Ingredient.of(Items.OAK_LOG),
                 "test:planks_from_log"
@@ -388,7 +387,7 @@ class TransactionCalculatorTest {
     void calculate_shouldKeepNonZeroDamageIngredientDistinctFromUndamagedInventoryStack() {
         ItemStack undamagedPickaxe = new ItemStack(Items.DIAMOND_PICKAXE, 1);
         ItemStack damagedPickaxeRequirement = stackWithDamageValue(Items.DIAMOND_PICKAXE, 5);
-        CraftingRecipe recipe = mockRecipe(
+        RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
                 Ingredient.of(damagedPickaxeRequirement),
                 "test:torch_from_damaged_pickaxe"
@@ -415,15 +414,13 @@ class TransactionCalculatorTest {
         return inv;
     }
 
-    private static CraftingRecipe mockRecipe(Item resultItem, int resultCount, Ingredient ingredient, String id) {
+    private static RecipeHolder<CraftingRecipe> mockRecipe(Item resultItem, int resultCount, Ingredient ingredient, String id) {
         return mockRecipeWithIngredients(resultItem, resultCount, id, ingredient);
     }
 
     private static ItemStack stackWithDefaultDamageTag(Item item) {
         ItemStack stack = new ItemStack(item);
-        CompoundTag tag = new CompoundTag();
-        tag.putInt("Damage", 0);
-        stack.setTag(tag);
+        stack.setDamageValue(0);
         return stack;
     }
 
@@ -433,7 +430,7 @@ class TransactionCalculatorTest {
         return stack;
     }
 
-    private static CraftingRecipe mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {
+    private static RecipeHolder<CraftingRecipe> mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         for (Ingredient ingredient : recipeIngredients) {
@@ -442,14 +439,12 @@ class TransactionCalculatorTest {
 
         when(recipe.getIngredients()).thenReturn(ingredients);
         when(recipe.getResultItem(any())).thenReturn(new ItemStack(resultItem, resultCount));
-        when(recipe.getId()).thenReturn(new ResourceLocation(id));
-
-        return recipe;
+        return new RecipeHolder<>(recipeId(id), recipe);
     }
 
-    private static void setPlanningResult(Map<Item, CraftingRecipe> pathMemo,
+    private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
                                           Map<Item, Double> costMemo,
-                                          Map<Item, List<CraftingRecipe>> recipeLookup) throws Exception {
+                                          Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) throws Exception {
         Constructor<CraftingPlanner.PlanningResult> constructor =
                 CraftingPlanner.PlanningResult.class.getDeclaredConstructor(Map.class, Map.class, Map.class);
         constructor.setAccessible(true);
@@ -458,5 +453,23 @@ class TransactionCalculatorTest {
         Field resultField = CraftingPlanner.class.getDeclaredField("result");
         resultField.setAccessible(true);
         resultField.set(CraftingPlanner.getInstance(), result);
+    }
+
+    private static void applyCustomData(ItemStack stack, CompoundTag tag) {
+        stack.applyComponentsAndValidate(ItemStackComponentSupport.patchFromCustomData(tag));
+    }
+
+    private static CompoundTag tagWithEntry(String key, Tag value) {
+        CompoundTag tag = new CompoundTag();
+        tag.put(key, value);
+        return tag;
+    }
+
+    private static ResourceLocation recipeId(String id) {
+        String[] parts = id.split(":", 2);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
+        }
+        return ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
     }
 }

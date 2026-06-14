@@ -4,6 +4,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.core.registries.BuiltInRegistries; // 使用原版注册表
@@ -33,25 +34,36 @@ public class CraftingPlanner {
         public static final PlanningResult EMPTY = new PlanningResult(
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
-        private final Map<Item, CraftingRecipe> pathMemo;
+        private final Map<Item, RecipeHolder<CraftingRecipe>> pathMemo;
         private final Map<Item, Double> costMemo;
-        private final Map<Item, List<CraftingRecipe>> recipeLookup;
+        private final Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup;
 
-        private PlanningResult(Map<Item, CraftingRecipe> pathMemo,
+        private PlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
                                Map<Item, Double> costMemo,
-                               Map<Item, List<CraftingRecipe>> recipeLookup) {
+                               Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
             this.pathMemo = Collections.unmodifiableMap(pathMemo);
             this.costMemo = Collections.unmodifiableMap(costMemo);
-            // recipeLookup 的 value (List) 也需要包装为不可变
-            Map<Item, List<CraftingRecipe>> unmodifiableLookup = new HashMap<>();
+            Map<Item, List<RecipeHolder<CraftingRecipe>>> unmodifiableLookup = new HashMap<>();
             recipeLookup.forEach((k, v) -> unmodifiableLookup.put(k, Collections.unmodifiableList(v)));
             this.recipeLookup = Collections.unmodifiableMap(unmodifiableLookup);
         }
 
-        public Map<Item, CraftingRecipe> getPathMemo() { return pathMemo; }
+        public Map<Item, RecipeHolder<CraftingRecipe>> getPathHolderMemo() { return pathMemo; }
         public Map<Item, Double> getCostMemo() { return costMemo; }
-        public List<CraftingRecipe> getRecipesFor(Item item) {
+        public List<RecipeHolder<CraftingRecipe>> getRecipeHoldersFor(Item item) {
             return recipeLookup.getOrDefault(item, Collections.emptyList());
+        }
+
+        public Map<Item, CraftingRecipe> getPathMemo() {
+            Map<Item, CraftingRecipe> recipes = new HashMap<>();
+            pathMemo.forEach((item, holder) -> recipes.put(item, holder.value()));
+            return Collections.unmodifiableMap(recipes);
+        }
+
+        public List<CraftingRecipe> getRecipesFor(Item item) {
+            return getRecipeHoldersFor(item).stream()
+                    .map(RecipeHolder::value)
+                    .toList();
         }
     }
 
@@ -94,8 +106,8 @@ public class CraftingPlanner {
 
         // 所有中间状态均为局部变量，不存在并发问题
         Map<Item, Double> minCostTable = new HashMap<>();
-        Map<Item, CraftingRecipe> pathMemo = new HashMap<>();
-        Map<Item, List<CraftingRecipe>> recipeLookup = new HashMap<>();
+        Map<Item, RecipeHolder<CraftingRecipe>> pathMemo = new HashMap<>();
+        Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup = new HashMap<>();
 
         Set<Item> allItems = indexRecipesAndCollectItems(recipeManager, recipeLookup);
         int baseCount = initializeBaseCosts(allItems, minCostTable, recipeLookup);
@@ -124,24 +136,25 @@ public class CraftingPlanner {
     }
 
     private static Set<Item> indexRecipesAndCollectItems(RecipeManager recipeManager,
-                                                         Map<Item, List<CraftingRecipe>> recipeLookup) {
-        List<CraftingRecipe> allRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
+                                                         Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
+        List<RecipeHolder<CraftingRecipe>> allRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
         Set<Item> allItems = new HashSet<>();
 
-        for (CraftingRecipe recipe : allRecipes) {
+        for (RecipeHolder<CraftingRecipe> recipeHolder : allRecipes) {
+            CraftingRecipe recipe = recipeHolder.value();
             if (recipe.isSpecial() || recipe.getResultItem(null).isEmpty()) continue;
             Item output = recipe.getResultItem(null).getItem();
-            recipeLookup.computeIfAbsent(output, k -> new ArrayList<>()).add(recipe);
+            recipeLookup.computeIfAbsent(output, k -> new ArrayList<>()).add(recipeHolder);
             allItems.add(output);
         }
 
-        // BuiltInRegistries.ITEM 在 Forge 和 Fabric 下都可用 (通过 Mojang 映射)
+        // BuiltInRegistries.ITEM is available on both supported loaders through Mojang mappings.
         allItems.addAll(BuiltInRegistries.ITEM.stream().toList());
         return allItems;
     }
 
     private static int initializeBaseCosts(Set<Item> allItems, Map<Item, Double> minCostTable,
-                                           Map<Item, List<CraftingRecipe>> recipeLookup) {
+                                           Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
         for (Item item : allItems) minCostTable.put(item, Double.MAX_VALUE);
 
         int baseCount = 0;
@@ -155,10 +168,11 @@ public class CraftingPlanner {
     }
 
     private static Set<Item> findItemsToRescue(Map<Item, Double> minCostTable,
-                                               Map<Item, List<CraftingRecipe>> recipeLookup) {
+                                               Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
         Set<Item> itemsToRescue = new HashSet<>();
-        for (Map.Entry<Item, List<CraftingRecipe>> entry : recipeLookup.entrySet()) {
-            for (CraftingRecipe recipe : entry.getValue()) {
+        for (Map.Entry<Item, List<RecipeHolder<CraftingRecipe>>> entry : recipeLookup.entrySet()) {
+            for (RecipeHolder<CraftingRecipe> recipeHolder : entry.getValue()) {
+                CraftingRecipe recipe = recipeHolder.value();
                 for (Ingredient ingredient : recipe.getIngredients()) {
                     for (ItemStack stack : ingredient.getItems()) {
                         Item inputItem = stack.getItem();
@@ -179,7 +193,7 @@ public class CraftingPlanner {
     }
 
     private static int finalizeCostMemo(Set<Item> allItems, Map<Item, Double> minCostTable,
-                                        Map<Item, CraftingRecipe> pathMemo, Map<Item, Double> costMemo) {
+                                        Map<Item, RecipeHolder<CraftingRecipe>> pathMemo, Map<Item, Double> costMemo) {
         int craftableCount = 0;
         for (Item item : allItems) {
             double finalCost = minCostTable.getOrDefault(item, Double.MAX_VALUE);
@@ -199,26 +213,27 @@ public class CraftingPlanner {
      */
     private static void runConvergenceLoop(int maxIterations, Set<Item> rescuedItems,
                                            Map<Item, Double> minCostTable,
-                                           Map<Item, CraftingRecipe> pathMemo,
-                                           Map<Item, List<CraftingRecipe>> recipeLookup) {
+                                           Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
+                                           Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
         boolean changed = true;
         int iterations = 0;
         while (changed && iterations < maxIterations) {
             changed = false;
             iterations++;
 
-            for (Map.Entry<Item, List<CraftingRecipe>> entry : recipeLookup.entrySet()) {
+            for (Map.Entry<Item, List<RecipeHolder<CraftingRecipe>>> entry : recipeLookup.entrySet()) {
                 Item target = entry.getKey();
                 double currentBestCost = minCostTable.get(target);
 
-                for (CraftingRecipe recipe : entry.getValue()) {
+                for (RecipeHolder<CraftingRecipe> recipeHolder : entry.getValue()) {
+                    CraftingRecipe recipe = recipeHolder.value();
                     double recipeCost = calculateRecipeCost(recipe, minCostTable);
 
                     // 如果新成本更优，则更新成本和路径
                     // 对于被拯救的物品，即使成本没有严格变小，只要它从无穷大变为一个有效值，也进行更新
                     if (recipeCost < currentBestCost || (rescuedItems != null && rescuedItems.contains(target) && recipeCost < Double.MAX_VALUE)) {
                         minCostTable.put(target, recipeCost);
-                        pathMemo.put(target, recipe);
+                        pathMemo.put(target, recipeHolder);
                         currentBestCost = recipeCost;
                         changed = true;
 

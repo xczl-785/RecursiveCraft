@@ -1,5 +1,5 @@
 {
-  "type": "recursivecraft:debug_tagged_result",
+  "type": "minecraft:crafting_shapeless",
   "group": "debug",
   "category": "misc",
   "ingredients": [
@@ -32,11 +32,6 @@
     }
   ],
   "result": {
-    "item": "recursivecraft:handheld_crafter",
-    "tag": {
-      "recursivecraft_debug": {
-        "variant": "red"
-      }
-    }
+    "item": "recursivecraft:handheld_crafter"
   }
 }

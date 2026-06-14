@@ -6,8 +6,10 @@ RecursiveCraft 是一个 Minecraft 递归合成辅助 Mod，目标是让玩家�
 
 ## 当前公开支持
 
-- Minecraft: `1.20.1`
-- Loaders: `Forge`、`Fabric`
+- Minecraft: `1.20.1`, `1.21.1`
+- Loaders:
+  - `1.20.1`: `Forge`, `Fabric`
+  - `1.21.1+`: `NeoForge`, `Fabric`
 
 ## 功能概览
 

@@ -19,7 +19,7 @@
   - 运行时库存模型是否仍以 `MaterialKey` 为正式身份
   - 根级 `Damage` 标签是否仍只通过规范化 `damage` 字段表达，避免默认 `Damage:0` 与普通物品栈拆成不同材料身份
   - 正式执行是否仍经 `InventoryView.planExecution()/commitExecution()`
-- **last_verified**: 2026-06-06
+- **last_verified**: 2026-06-15
 
 ---
 
@@ -29,13 +29,15 @@
 
 该能力仍然是当前 NBT 兼容问题的核心承压区，但其主执行链已经从纯 `Map<Item, Integer>` 模型切换为运行时材料身份模型；截至 `2026-05-31`，它还新增了“可选目标产物身份指定”能力，可把 JEI 当前展示的输出身份沿包体、执行器和事务计算一路传递到成功判定。当前残留问题主要集中在少量 `Item` 级桥接、matcher 预留骨架，以及真实运行时 JEI / gameplay 复验尚未完成。
 
-截至 `2026-06-01`，为闭合 `Phase 4A` checklist `2.2 / 2.3` 的运行时复验，还额外补入了一组最小 debug fixture：
+截至 `2026-06-15` 的 `1.21.1` 迁移线，材料身份已从旧 `ItemStack` NBT API 迁到 Data Components。`CUSTOM_DATA` 会被展开为原 `nbt:*` canonical 字段，以保留旧材料身份语义；其它 data components 则作为 component 字段参与身份比较。
+
+为保留同一 `Item` 多身份的自动化覆盖，仓库仍保留一组最小 debug fixture：
 
 - 两条真实、非 special 的 debug recipe
-- 同一 `Item` 输出，两个不同的 `recursivecraft_debug.variant`
-- 仅用于给 `JEI Ctrl` runtime verification 提供稳定样例
+- 同一 `Item` 输出，通过测试夹具注入两个不同的 `recursivecraft_debug.variant`
+- 仅用于给 `JEI Ctrl` / 目标身份测试提供稳定样例
 
-该 fixture 不是正式玩法承诺，而是当前阶段为补证据引入的 shipped debug content。
+该 fixture 不是正式玩法承诺；`DebugTaggedResultRecipe` serializer 已从 1.21.1 正式构建路径中移除。
 
 ---
 
@@ -85,7 +87,7 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 
 ### CR-005A: `Phase 4A` debug fixture 为 `JEI Ctrl` runtime verification 提供同一 `Item` 多身份样例
 
-仓库当前存在两条 debug fixture recipe，它们共享同一个输出 `Item`，但携带不同的 `recursivecraft_debug.variant`。其目的不是扩展正式玩法，而是确保 `2.2 / 2.3` 可以在真实运行时验证“JEI 展示什么身份，递归就按什么身份执行”。
+仓库当前存在两条 debug fixture recipe，它们共享同一个输出 `Item`。在 1.21.1 线中，variant 身份由测试夹具通过 `CUSTOM_DATA` 注入，而不是通过正式 recipe serializer 输出。其目的不是扩展正式玩法，而是验证“JEI 展示什么身份，递归就按什么身份执行”。
 
 **Evidence**: `common/src/main/resources/data/recursivecraft/recipes/debug/handheld_crafter_red.json:1`
 
@@ -149,10 +151,10 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
 | 配方解析 | 若改动 JEI 强制 recipe 或顶层默认选配逻辑，需同步检查命令、包和 JEI 行为 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:88` |
 | 目标产物成功判定 | 若改动目标产物身份流，需同时检查 `desiredOutputKey` 解析、`normalizedProvides` 统计、旧 item-level 成功路径回退，以及 `MISSING / UNSUPPORTED` 可见语义 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:61` |
 | 库存模型 | 若改动运行时身份模型，需同时检查共享快照构造、缺料判断、虚拟扣减、执行桥接与请求级失败语义 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/VirtualInventorySnapshot.java:26` |
-| 材料身份规范化 | 若改动 NBT / damage 规范化，需确认显式默认 `Damage:0` 与普通栈等价，非零耐久仍保留差异 | `common/src/main/java/xczl/recursivecraft/runtime/material/DefaultMaterialIdentityNormalizer.java:21` |
+| 材料身份规范化 | 若改动 Data Components / custom data / damage 规范化，需确认 `CUSTOM_DATA` 仍展开为 `nbt:*` 字段，非零耐久仍保留差异 | `common/src/main/java/xczl/recursivecraft/runtime/material/DefaultMaterialIdentityNormalizer.java:21` |
 | 执行语义 | 若切换为多来源或容器级执行，需重写 `InventoryView`、`ResolvedExecutionPlan` 与事务桥接边界 | `common/src/main/java/xczl/recursivecraft/runtime/inventory/PlayerInventoryView.java:42` |
 | JEI 展示输出绑定 | 若改动 JEI 输出槽读取或 Ctrl 路径构包，需确认展示变体身份仍被原样带入网络请求，并与 `recipeId` 成对出现 | `common/src/main/java/xczl/recursivecraft/compat/jei/RecursiveCraftTransferHandler.java:74` |
-| Runtime verification fixture | 若改动 `debug/handheld_crafter_red|blue` 或 tagged recipe serializer，需同时检查 recipe id、输出 tag、planner 默认成本、JEI 构包测试与目标身份测试 | `common/src/main/resources/data/recursivecraft/recipes/debug/handheld_crafter_red.json:1` |
+| Runtime verification fixture | 若改动 `debug/handheld_crafter_red|blue`，需同时检查 recipe id、planner 默认成本、JEI 构包测试与目标身份测试 | `common/src/main/resources/data/recursivecraft/recipes/debug/handheld_crafter_red.json:1` |
 | NBT 兼容 | 若继续推进 NBT，需统一修正残留 `Item` 级桥接、缺料分析与目标产物语义 | `common/src/main/java/xczl/recursivecraft/core/CraftingTaskExecutor.java:103` |
 
 ---
@@ -165,17 +167,14 @@ JEI 递归路径不再只发送“这个 `Item` 要做几个”，而是会从�
   - `CraftingTaskExecutor` 的旧成功判定保留、目标身份 `MISSING / UNSUPPORTED` 结果、入口不变量拒绝
   - `TransactionCalculator` 的目标身份重载、目标输出 identity 过滤、旧空 spec 语义保留
   - `JEI Ctrl` 递归构包的 `recipeId + TargetOutputSpec` 绑定
-  - debug fixture recipe / serializer 的 tagged output 与 planner 成本约束
+  - debug fixture recipe 的 planner 成本约束，以及测试夹具注入的 red/blue custom data 身份
   - debug fixture 在执行器 / JEI 测试中的 red/blue sibling identity 路径
 - 固定验证命令：
-  - `java -classpath E:\Program\RecursiveCraft\gradle\wrapper\gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -p E:\Program\RecursiveCraft :common:test --tests "xczl.recursivecraft.runtime.material.TargetOutputSpecTest" --tests "xczl.recursivecraft.networking.C2SExecuteCraftPacketTest" --tests "xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest" --tests "xczl.recursivecraft.core.TransactionCalculatorNbtTest" --tests "xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest" --tests "xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest" --tests "xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest"`
-  - `./gradlew --no-daemon --console=plain :common:test --tests 'xczl.recursivecraft.runtime.material.TargetOutputSpecTest' --tests 'xczl.recursivecraft.networking.C2SExecuteCraftPacketTest' --tests 'xczl.recursivecraft.core.CraftingTaskExecutorTargetOutputTest' --tests 'xczl.recursivecraft.core.TransactionCalculatorNbtTest' --tests 'xczl.recursivecraft.compat.jei.RecursiveCraftTransferHandlerTest' --tests 'xczl.recursivecraft.recipe.DebugTaggedResultRecipeTest' --tests 'xczl.recursivecraft.runtime.match.DefaultMaterialMatcherTest'`
-- 当前工作树于 `2026-06-01` 已重新验证：
-  - 已恢复标准 `gradlew` / `gradle-wrapper.jar`
-  - 固定自动化矩阵重跑通过
-  - `./gradlew --no-daemon --console=plain forge:configureClientLaunch` 重跑通过
-- 真实运行时证据：
-  - `2026-06-02` 已在 Forge runtime 中通过 `debug/handheld_crafter_red|blue` 样例观察到真实产物保留 `recursivecraft_debug.variant = "red"|"blue"`，说明 `JEI Ctrl -> TargetOutputSpec -> resolvedOutputs` 的关键身份链路已闭合
+  - `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew --no-daemon --console=plain --configure-on-demand :common:test`
+  - `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew --no-daemon --console=plain --configure-on-demand build`
+- 当前工作树于 `2026-06-15` 已重新验证：
+  - `:common:test` 通过
+  - `build` 通过，覆盖 Fabric 与 NeoForge 打包链路
 - 当前剩余非 blocker 验证项：
   - `2.4 / 2.5 / 2.6` 仍主要保留在 synthetic-debug / 组合验证范围
 - 当前更细的阶段复验证据已迁出公开代码仓，保留在内部文档仓中维护。
