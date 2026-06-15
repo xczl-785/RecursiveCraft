@@ -1,10 +1,13 @@
 package xczl.recursivecraft.core;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -14,7 +17,12 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.PlacementInfo;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,11 +36,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,7 +71,7 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getName(new ItemStack(Items.OAK_LOG)).getString())));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
     }
 
@@ -89,8 +97,8 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getName(new ItemStack(Items.DIAMOND)).getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName(new ItemStack(Items.OAK_PLANKS)).getString())));
     }
 
     @Test
@@ -123,8 +131,8 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.WOODEN_AXE, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("2x") && msg.toString().contains(Items.STICK.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("2x") && msg.toString().contains(Items.STICK.getName(new ItemStack(Items.STICK)).getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName(new ItemStack(Items.OAK_PLANKS)).getString())));
     }
 
     @Test
@@ -244,9 +252,13 @@ class CraftingTaskExecutorNbtTest {
         for (Ingredient ingredient : recipeIngredients) {
             ingredients.add(ingredient);
         }
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(result.copy());
-        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
+        PlacementInfo info = PlacementInfo.create(ingredients);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(result.getItem());
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
+        return new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, ResourceLocation.parse(id)), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -255,8 +267,18 @@ class CraftingTaskExecutorNbtTest {
         for (int i = 0; i < options.length; i++) {
             copies[i] = options[i].copy();
         }
-        when(ingredient.getItems()).thenReturn(copies);
+        List<Holder<net.minecraft.world.item.Item>> holders = Stream.of(copies).map(s -> Holder.direct(s.getItem())).toList();
+        when(ingredient.items()).thenAnswer(inv -> holders.stream());
         when(ingredient.isEmpty()).thenReturn(options.length == 0);
+        if (options.length == 1) {
+            when(ingredient.display()).thenReturn(new SlotDisplay.ItemStackSlotDisplay(copies[0]));
+        } else if (options.length > 1) {
+            List<SlotDisplay> displays = new ArrayList<>();
+            for (ItemStack copy : copies) {
+                displays.add(new SlotDisplay.ItemStackSlotDisplay(copy));
+            }
+            when(ingredient.display()).thenReturn(new SlotDisplay.Composite(displays));
+        }
         return ingredient;
     }
 

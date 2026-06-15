@@ -1,11 +1,14 @@
 package xczl.recursivecraft.core;
 
 import com.google.gson.JsonObject;
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.GsonHelper;
@@ -17,8 +20,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.PlacementInfo;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -289,10 +298,11 @@ class CraftingTaskExecutorTargetOutputTest {
         );
 
         RecipeManager recipeManager = mock(RecipeManager.class);
+        ResourceKey<Recipe<?>> specialStickKey = ResourceKey.create(Registries.RECIPE, ResourceLocation.parse("test:special_stick"));
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_stick"));
+                .when(recipeManager).byKey(specialStickKey);
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        when(level.recipeAccess()).thenReturn(recipeManager);
 
         ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG)));
         when(player.level()).thenReturn(level);
@@ -323,10 +333,11 @@ class CraftingTaskExecutorTargetOutputTest {
         when(specialRecipe.value().isSpecial()).thenReturn(true);
 
         RecipeManager recipeManager = mock(RecipeManager.class);
+        ResourceKey<Recipe<?>> specialRedKey = ResourceKey.create(Registries.RECIPE, ResourceLocation.parse("test:special_red_stick"));
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick"));
+                .when(recipeManager).byKey(specialRedKey);
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        when(level.recipeAccess()).thenReturn(recipeManager);
 
         ItemStack oakLog = new ItemStack(Items.OAK_LOG);
         ServerPlayer player = mockPlayer(mockInventory(oakLog));
@@ -361,10 +372,11 @@ class CraftingTaskExecutorTargetOutputTest {
         when(specialRecipe.value().isSpecial()).thenReturn(true);
 
         RecipeManager recipeManager = mock(RecipeManager.class);
+        ResourceKey<Recipe<?>> specialRedMissingKey = ResourceKey.create(Registries.RECIPE, ResourceLocation.parse("test:special_red_stick_missing"));
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick_missing"));
+                .when(recipeManager).byKey(specialRedMissingKey);
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        when(level.recipeAccess()).thenReturn(recipeManager);
 
         RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 new ItemStack(Items.OAK_PLANKS, 4),
@@ -392,8 +404,8 @@ class CraftingTaskExecutorTargetOutputTest {
         );
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getName(new ItemStack(Items.DIAMOND)).getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName(new ItemStack(Items.OAK_PLANKS)).getString())));
     }
 
     @Test
@@ -441,7 +453,7 @@ class CraftingTaskExecutorTargetOutputTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.STICK, 1, null, null, messages::add);
 
         assertTrue(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains(Items.RED_DYE.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains(Items.RED_DYE.getName(new ItemStack(Items.RED_DYE)).getString())));
         assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("Crimson Debug Stick")));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("MaterialKey{")));
     }
@@ -452,7 +464,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
         String display = CraftingTaskExecutor.describeMaterialKeyForPlayer(key);
 
-        assertTrue(display.contains(Items.STICK.getDescription().getString()));
+        assertTrue(display.contains(Items.STICK.getName(new ItemStack(Items.STICK)).getString()));
         assertTrue(display.contains("variant=red-output"));
         assertFalse(display.contains("MaterialKey{"));
     }
@@ -477,9 +489,13 @@ class CraftingTaskExecutorTargetOutputTest {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(result.copy());
-        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
+        PlacementInfo info = PlacementInfo.create(ingredients);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemStackSlotDisplay(result.copy());
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
+        return new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, ResourceLocation.parse(id)), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -488,8 +504,22 @@ class CraftingTaskExecutorTargetOutputTest {
         for (int i = 0; i < options.length; i++) {
             copies[i] = options[i].copy();
         }
-        when(ingredient.getItems()).thenReturn(copies);
+        List<Holder<net.minecraft.world.item.Item>> holders = new ArrayList<>();
+        for (ItemStack copy : copies) {
+            holders.add(Holder.direct(copy.getItem()));
+        }
+        when(ingredient.items()).thenAnswer(inv -> holders.stream());
         when(ingredient.isEmpty()).thenReturn(options.length == 0);
+        // Stub display() to return ItemStackSlotDisplay with full component data
+        if (options.length == 1) {
+            when(ingredient.display()).thenReturn(new SlotDisplay.ItemStackSlotDisplay(copies[0]));
+        } else if (options.length > 1) {
+            List<SlotDisplay> displays = new ArrayList<>();
+            for (ItemStack copy : copies) {
+                displays.add(new SlotDisplay.ItemStackSlotDisplay(copy));
+            }
+            when(ingredient.display()).thenReturn(new SlotDisplay.Composite(displays));
+        }
         return ingredient;
     }
 

@@ -2,6 +2,7 @@ package xczl.recursivecraft.core;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
@@ -149,9 +150,12 @@ public class CraftingTaskExecutor {
 
     private static @Nullable RecipeHolder<CraftingRecipe> resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
         if (forcedRecipeId != null) {
-            Optional<RecipeHolder<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
+            ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> recipeKey =
+                    ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, forcedRecipeId);
+            Optional<RecipeHolder<?>> opt = ((net.minecraft.server.level.ServerLevel) player.level()).recipeAccess().byKey(recipeKey);
             if (opt.isPresent() && opt.get().value() instanceof CraftingRecipe cr) {
-                if (!cr.isSpecial() && cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
+                ItemStack resultStack = CraftingPlanner.getRecipeResult(cr);
+                if (!cr.isSpecial() && resultStack.getItem() == targetItem) {
                     @SuppressWarnings("unchecked")
                     RecipeHolder<CraftingRecipe> holder = (RecipeHolder<CraftingRecipe>) opt.get();
                     return holder;
@@ -297,7 +301,7 @@ public class CraftingTaskExecutor {
                 msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent(result.status())));
                 return false;
             }
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription()));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getName()));
             return true;
         } catch (Exception e) {
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", e.getMessage()));
@@ -342,13 +346,13 @@ public class CraftingTaskExecutor {
     }
 
     static String describeMaterialKeyForPlayer(MaterialKey key) {
-        String baseName = key.item().getDescription().getString();
+        String baseName = key.item().getName().getString();
         List<String> qualifiers = collectMaterialQualifiers(key);
         return qualifiers.isEmpty() ? baseName : baseName + " [" + String.join(", ", qualifiers) + "]";
     }
 
     private static Component describeMaterialKeyForPlayerComponent(MaterialKey key) {
-        Component baseName = key.item().getDescription();
+        Component baseName = key.item().getName();
         List<Component> qualifiers = collectMaterialQualifierComponents(key);
         return qualifiers.isEmpty()
                 ? baseName

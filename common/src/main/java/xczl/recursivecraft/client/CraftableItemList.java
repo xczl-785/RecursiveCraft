@@ -53,7 +53,7 @@ public class CraftableItemList {
 
         for (Item item : plannerItems) {
             ItemStack displayStack = CraftingPlanner.getInstance().getResult().getPathMemo().get(item) != null
-                    ? CraftingPlanner.getInstance().getResult().getPathMemo().get(item).getResultItem(null).copy()
+                    ? CraftingPlanner.getRecipeResult(CraftingPlanner.getInstance().getResult().getPathMemo().get(item)).copy()
                     : new ItemStack(item);
             if (displayStack.isEmpty()) {
                 displayStack = new ItemStack(item);

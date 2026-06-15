@@ -126,7 +126,7 @@ public class TransactionCalculator {
             return new TopLevelMissingReport(Map.of(), false);
         }
 
-        ItemStack result = recipe.getResultItem(null);
+        ItemStack result = CraftingPlanner.getRecipeResult(recipe);
         int outputCount = result == null || result.isEmpty() ? 1 : Math.max(1, result.getCount());
         int recipeRuns = (int) Math.ceil((double) amount / outputCount);
 
@@ -202,7 +202,7 @@ public class TransactionCalculator {
         VirtualInventorySnapshot playerInventorySnapshot = snapshotPlayerInventory();
         CalcContext context = new CalcContext(playerInventorySnapshot, playerInventorySnapshot, new HashSet<>());
         RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
-        RecursiveCraft.LOGGER.info("Target: {} x{} (JEI Displayed Recipe)", target.getDescription().getString(), amount);
+        RecursiveCraft.LOGGER.info("Target: {} x{} (JEI Displayed Recipe)", target.getName().getString(), amount);
         uncraftableCache.clear();
 
         CraftingTransaction transaction = new CraftingTransaction();
@@ -317,7 +317,7 @@ public class TransactionCalculator {
             return missing(createNeedOnlyTransaction(target, amountToCraft, desiredKey));
         }
 
-        int outputCount = recipe.getResultItem(null).getCount();
+        int outputCount = CraftingPlanner.getRecipeResult(recipe).getCount();
         if (outputCount <= 0) {
             outputCount = 1;
         }
@@ -334,7 +334,7 @@ public class TransactionCalculator {
         }
 
         int totalProduced = recipeRuns * outputCount;
-        appendResolvedOutputs(tx, recipe.getResultItem(null), isFinalTarget ? totalProduced : (totalProduced - amountToCraft));
+        appendResolvedOutputs(tx, CraftingPlanner.getRecipeResult(recipe), isFinalTarget ? totalProduced : (totalProduced - amountToCraft));
 
         int extra = totalProduced - amountToCraft;
         if (extra > 0) {
@@ -400,7 +400,7 @@ public class TransactionCalculator {
     }
 
     private NormalizationResult normalizeRecipeOutput(CraftingRecipe recipe) {
-        ItemStack result = recipe.getResultItem(null);
+        ItemStack result = CraftingPlanner.getRecipeResult(recipe);
         if (result == null || result.isEmpty()) {
             return NormalizationResult.unsupported();
         }
@@ -410,7 +410,7 @@ public class TransactionCalculator {
 
     private List<IngredientNeed> aggregateIngredientNeedsPreservingRecipeOrder(CraftingRecipe recipe) {
         List<IngredientNeed> orderedNeeds = new ArrayList<>();
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
             if (ingredient.isEmpty()) {
                 continue;
             }
@@ -433,7 +433,7 @@ public class TransactionCalculator {
 
     private List<IngredientNeed> aggregateIngredientNeeds(CraftingRecipe recipe) {
         Map<IngredientRequirement, Integer> aggregatedNeeds = new HashMap<>();
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
             if (ingredient.isEmpty()) {
                 continue;
             }
@@ -532,7 +532,7 @@ public class TransactionCalculator {
 
             if (trial.kind() == RequestLevelKind.SATISFIED) {
                 if (forcedRecipe == null) {
-                    RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getDescription().getString());
+                    RecursiveCraft.LOGGER.info("{}   [Decision] Selected recipe for {}", indent, target.getName().getString());
                 }
                 context.virtualInventory = snapshotContext.virtualInventory;
                 return trial;
@@ -585,7 +585,7 @@ public class TransactionCalculator {
         if (recipe == null) {
             return false;
         }
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
             if (ingredient.isEmpty()) {
                 continue;
             }
@@ -774,9 +774,9 @@ public class TransactionCalculator {
     private void logCalculationStart(Item target, int amount, @Nullable RecipeHolder<CraftingRecipe> forcedRecipe) {
         RecursiveCraft.LOGGER.info("--- [CALCULATION START] ---");
         if (forcedRecipe != null) {
-            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getDescription().getString(), amount, forcedRecipe.id());
+            RecursiveCraft.LOGGER.info("Target: {} x{} (Forced Recipe: {})", target.getName().getString(), amount, forcedRecipe.id());
         } else {
-            RecursiveCraft.LOGGER.info("Target: {} x{}", target.getDescription().getString(), amount);
+            RecursiveCraft.LOGGER.info("Target: {} x{}", target.getName().getString(), amount);
         }
     }
 

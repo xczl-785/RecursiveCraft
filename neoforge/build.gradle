@@ -22,8 +22,8 @@ configurations {
 }
 
 dependencies {
-    def localJeiApi = file("local-libs/jei-1.21.1-neoforge-api.jar")
-    def localJeiRuntime = file("local-libs/jei-1.21.1-neoforge.jar")
+    def localJeiApi = file("local-libs/jei-1.21.8-neoforge-api.jar")
+    def localJeiRuntime = file("local-libs/jei-1.21.8-neoforge.jar")
     def localModsDir = file("local-mods")
 
     neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
@@ -45,14 +45,14 @@ dependencies {
     if (localJeiApi.exists()) {
         compileOnly files(localJeiApi)
     } else {
-        compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.27.0.340"
+        compileOnly "mezz.jei:jei-1.21.8-neoforge-api:24.2.0.6"
     }
 
     if (localJeiRuntime.exists()) {
         // 本地 jar 可规避远端 Maven/TLS 问题，同时保留仓库默认可构建性
         modLocalRuntime files(localJeiRuntime)
     } else {
-        modLocalRuntime "mezz.jei:jei-1.21.1-neoforge:19.27.0.340"
+        modLocalRuntime "mezz.jei:jei-1.21.8-neoforge:24.2.0.6"
     }
 
     if (localModsDir.exists()) {

@@ -1,12 +1,13 @@
 package xczl.recursivecraft.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -128,8 +129,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
-        RenderSystem.setShaderTexture(0, BACKGROUND_TEXTURE);
-        graphics.blit(BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0.0f, 0.0f, this.imageWidth, this.imageHeight, 256, 256);
     }
 
     @Override
@@ -204,7 +204,10 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
                     tooltip.add(Component.translatable("recursivecraft.gui.right_click_favorite").withStyle(ChatFormatting.DARK_GRAY));
                 }
 
-                graphics.renderTooltip(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+                List<ClientTooltipComponent> tooltipComponents = tooltip.stream()
+                        .map(c -> ClientTooltipComponent.create(c.getVisualOrderText()))
+                        .toList();
+                graphics.renderTooltip(this.font, tooltipComponents, mouseX, mouseY, null, BACKGROUND_TEXTURE);
             }
         }
     }

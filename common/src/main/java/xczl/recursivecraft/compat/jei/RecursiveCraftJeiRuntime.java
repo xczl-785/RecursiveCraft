@@ -11,6 +11,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.client.CraftableTarget;
+import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
@@ -65,7 +66,7 @@ public final class RecursiveCraftJeiRuntime {
                                                  Set<Item> plannerItems,
                                                  Map<String, CraftableTarget> deduped) {
         CraftingRecipe recipe = recipeHolder.value();
-        ResourceLocation recipeId = recipeHolder.id();
+        ResourceLocation recipeId = recipeHolder.id().location();
 
         if (collectGroupedVariants(recipe, recipeId, plannerItems, deduped)) {
             return;
@@ -115,7 +116,7 @@ public final class RecursiveCraftJeiRuntime {
 
     private static ItemStack safeRecipeResult(CraftingRecipe recipe) {
         try {
-            return recipe.getResultItem(RegistryAccess.EMPTY).copy();
+            return CraftingPlanner.getRecipeResult(recipe).copy();
         } catch (Exception ignored) {
             return ItemStack.EMPTY;
         }

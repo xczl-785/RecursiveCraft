@@ -1,9 +1,12 @@
 package xczl.recursivecraft.core;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -11,7 +14,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.PlacementInfo;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,12 +31,12 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -165,7 +173,7 @@ class TransactionCalculatorTest {
         ItemStack ingredientLog = stackWithDefaultDamageTag(Items.OAK_LOG);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
-                Ingredient.of(ingredientLog),
+                ingredientOfStack(ingredientLog),
                 "test:planks_from_log_with_default_damage"
         );
         Inventory inv = mockInventory(plainLog);
@@ -330,7 +338,7 @@ class TransactionCalculatorTest {
         TransactionCalculator calculator = new TransactionCalculator(inv);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
-                Ingredient.of(unsupportedStick),
+                ingredientOfStack(unsupportedStick),
                 "test:torch_from_unsupported_stick"
         );
 
@@ -389,7 +397,7 @@ class TransactionCalculatorTest {
         ItemStack damagedPickaxeRequirement = stackWithDamageValue(Items.DIAMOND_PICKAXE, 5);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
-                Ingredient.of(damagedPickaxeRequirement),
+                ingredientOfStack(damagedPickaxeRequirement),
                 "test:torch_from_damaged_pickaxe"
         );
         Inventory inv = mockInventory(undamagedPickaxe);
@@ -436,10 +444,13 @@ class TransactionCalculatorTest {
         for (Ingredient ingredient : recipeIngredients) {
             ingredients.add(ingredient);
         }
-
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(new ItemStack(resultItem, resultCount));
-        return new RecipeHolder<>(recipeId(id), recipe);
+        PlacementInfo info = PlacementInfo.create(ingredients);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(resultItem);
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
+        return new RecipeHolder<>(recipeKey(id), recipe);
     }
 
     private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
@@ -465,11 +476,16 @@ class TransactionCalculatorTest {
         return tag;
     }
 
-    private static ResourceLocation recipeId(String id) {
-        String[] parts = id.split(":", 2);
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
-        }
-        return ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+    private static ResourceKey<Recipe<?>> recipeKey(String id) {
+        return ResourceKey.create(Registries.RECIPE, ResourceLocation.parse(id));
+    }
+
+    private static Ingredient ingredientOfStack(ItemStack stack) {
+        Ingredient ingredient = mock(Ingredient.class);
+        List<Holder<net.minecraft.world.item.Item>> holders = List.of(Holder.direct(stack.getItem()));
+        when(ingredient.items()).thenAnswer(inv -> holders.stream());
+        when(ingredient.isEmpty()).thenReturn(false);
+        when(ingredient.display()).thenReturn(new SlotDisplay.ItemStackSlotDisplay(stack.copy()));
+        return ingredient;
     }
 }

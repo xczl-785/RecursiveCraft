@@ -2,10 +2,13 @@ package xczl.recursivecraft.core;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.entity.player.Inventory;
@@ -14,7 +17,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.PlacementInfo;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,16 +38,17 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,10 +74,14 @@ class TransactionCalculatorNbtTest {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(Ingredient.of(Items.OAK_LOG));
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(new ItemStack(Items.OAK_PLANKS, 4));
+        PlacementInfo info = PlacementInfo.create(ingredients);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(Items.OAK_PLANKS);
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
 
-        CraftingTransaction tx = calc.calculate(Items.OAK_PLANKS, 4, true, new RecipeHolder<>(recipeId("test:r"), recipe));
+        CraftingTransaction tx = calc.calculate(Items.OAK_PLANKS, 4, true, new RecipeHolder<>(recipeKey("test:r"), recipe));
         assertFalse(tx.getMaterialNeeds().isEmpty());
     }
 
@@ -199,7 +212,7 @@ class TransactionCalculatorNbtTest {
         assertEquals(Items.STICK, resolved.getItem());
         assertEquals(2, resolved.getCount());
         assertNotNull(customData(resolved));
-        assertEquals("red-output", customData(resolved).getString("variant"));
+        assertEquals("red-output", customData(resolved).getString("variant").orElse(""));
     }
 
     @Test
@@ -261,8 +274,8 @@ class TransactionCalculatorNbtTest {
         JsonObject blueRecipeJson = readRecipeJson("debug/handheld_crafter_blue");
         JsonObject normalRecipeJson = readRecipeJson("handheld_crafter");
 
-        ResourceLocation redId = recipeId("recursivecraft:debug/handheld_crafter_red");
-        ResourceLocation blueId = recipeId("recursivecraft:debug/handheld_crafter_blue");
+        ResourceLocation redId = ResourceLocation.parse("recursivecraft:debug/handheld_crafter_red");
+        ResourceLocation blueId = ResourceLocation.parse("recursivecraft:debug/handheld_crafter_blue");
         assertNotEquals(redId, blueId);
 
         assertEquals("recursivecraft:handheld_crafter", resultItemId(redRecipeJson));
@@ -312,7 +325,7 @@ class TransactionCalculatorNbtTest {
         Map<Item, Double> costTable = Map.of(Items.DIAMOND, 10.0d);
 
         double cost = invokePlannerRecipeCost(
-                recipeForPlannerCost(recipeJson, recipeId("recursivecraft:count_check")),
+                recipeForPlannerCost(recipeJson, recipeKey("recursivecraft:count_check")),
                 costTable
         );
 
@@ -329,7 +342,7 @@ class TransactionCalculatorNbtTest {
         CraftingTransaction tx = calc.calculate(Items.STICK, 1, true, recipe, materialKey(redStick));
 
         assertEquals(1, tx.getResolvedOutputs().size());
-        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant"));
+        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant").orElse(""));
         assertEquals(1, tx.getMaterialNeeds().values().stream().mapToInt(Integer::intValue).sum());
         assertFalse(tx.isUnsupported());
     }
@@ -381,7 +394,7 @@ class TransactionCalculatorNbtTest {
 
         assertEquals(1, tx.getMaterialNeeds().getOrDefault(materialKey(redWool), 0));
         assertFalse(tx.getMaterialNeeds().containsKey(materialKey(blueWool)));
-        assertEquals("red", fixtureVariant(tx.getResolvedOutputs().get(0)));
+        assertEquals("red", fixtureVariant(tx.getResolvedOutputs().get(0)).orElse(""));
         assertFalse(tx.isUnsupported());
     }
 
@@ -407,7 +420,7 @@ class TransactionCalculatorNbtTest {
 
         assertEquals(1, tx.getMaterialNeeds().getOrDefault(materialKey(redWool), 0));
         assertFalse(tx.getMaterialNeeds().containsKey(materialKey(blueWool)));
-        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant"));
+        assertEquals("red-output", customData(tx.getResolvedOutputs().get(0)).getString("variant").orElse(""));
         assertFalse(tx.isUnsupported());
     }
 
@@ -465,8 +478,8 @@ class TransactionCalculatorNbtTest {
         assertEquals(legacy.getProvides(), withNullDesired.getProvides());
         assertEquals(legacy.getResolvedOutputs().size(), withNullDesired.getResolvedOutputs().size());
         assertEquals(
-                customData(legacy.getResolvedOutputs().get(0)).getString("variant"),
-                customData(withNullDesired.getResolvedOutputs().get(0)).getString("variant")
+                customData(legacy.getResolvedOutputs().get(0)).getString("variant").orElse(""),
+                customData(withNullDesired.getResolvedOutputs().get(0)).getString("variant").orElse("")
         );
         assertEquals(legacy.isUnsupported(), withNullDesired.isUnsupported());
     }
@@ -484,9 +497,13 @@ class TransactionCalculatorNbtTest {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(result.copy());
-        return new RecipeHolder<>(recipeId(id), recipe);
+        PlacementInfo info = PlacementInfo.create(ingredients);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(result.getItem());
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
+        return new RecipeHolder<>(recipeKey(id), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -495,8 +512,18 @@ class TransactionCalculatorNbtTest {
         for (int i = 0; i < options.length; i++) {
             copies[i] = options[i].copy();
         }
-        when(ingredient.getItems()).thenReturn(copies);
+        List<Holder<net.minecraft.world.item.Item>> holders = Stream.of(copies).map(s -> Holder.direct(s.getItem())).toList();
+        when(ingredient.items()).thenAnswer(inv -> holders.stream());
         when(ingredient.isEmpty()).thenReturn(options.length == 0);
+        if (options.length == 1) {
+            when(ingredient.display()).thenReturn(new SlotDisplay.ItemStackSlotDisplay(copies[0]));
+        } else if (options.length > 1) {
+            List<SlotDisplay> displays = new ArrayList<>();
+            for (ItemStack copy : copies) {
+                displays.add(new SlotDisplay.ItemStackSlotDisplay(copy));
+            }
+            when(ingredient.display()).thenReturn(new SlotDisplay.Composite(displays));
+        }
         return ingredient;
     }
 
@@ -544,16 +571,12 @@ class TransactionCalculatorNbtTest {
         }
     }
 
-    private static ResourceLocation recipeId(String id) {
-        String[] parts = id.split(":", 2);
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
-        }
-        return ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+    private static ResourceKey<Recipe<?>> recipeKey(String id) {
+        return ResourceKey.create(Registries.RECIPE, ResourceLocation.parse(id));
     }
 
     private static double plannerRecipeCostForResource(String recipePath, Map<Item, Double> costTable) throws Exception {
-        return invokePlannerRecipeCost(recipeForPlannerCost(readRecipeJson(recipePath), recipeId("recursivecraft:" + recipePath)), costTable);
+        return invokePlannerRecipeCost(recipeForPlannerCost(readRecipeJson(recipePath), recipeKey("recursivecraft:" + recipePath)), costTable);
     }
 
     private static String resultItemId(JsonObject recipeJson) {
@@ -569,8 +592,8 @@ class TransactionCalculatorNbtTest {
         return stackWithDebugVariant(item, debugFixtureVariant(readRecipeJson(recipePath)));
     }
 
-    private static String fixtureVariant(ItemStack stack) {
-        return customData(stack).getCompound("recursivecraft_debug").getString("variant");
+    private static java.util.Optional<String> fixtureVariant(ItemStack stack) {
+        return customData(stack).getCompoundOrEmpty("recursivecraft_debug").getString("variant");
     }
 
     private static int countIngredientItem(JsonObject recipeJson, String itemId) {
@@ -616,10 +639,14 @@ class TransactionCalculatorNbtTest {
         return (double) method.invoke(null, recipe, costTable);
     }
 
-    private static CraftingRecipe recipeForPlannerCost(JsonObject recipeJson, ResourceLocation id) {
+    private static CraftingRecipe recipeForPlannerCost(JsonObject recipeJson, ResourceKey<Recipe<?>> id) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
-        when(recipe.getIngredients()).thenReturn(plannerCostIngredients(recipeJson));
-        when(recipe.getResultItem(any())).thenReturn(new ItemStack(Items.STICK, plannerCostResultCount(recipeJson)));
+        PlacementInfo info = PlacementInfo.create(plannerCostIngredients(recipeJson));
+        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(Items.STICK);
+        RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
+        List<RecipeDisplay> displays = List.of(display);
+        when(recipe.placementInfo()).thenReturn(info);
+        when(recipe.display()).thenReturn(displays);
         return recipe;
     }
 
@@ -654,7 +681,7 @@ class TransactionCalculatorNbtTest {
     }
 
     private static Ingredient plannerCostIngredient(JsonObject ingredientJson) {
-        return Ingredient.of(new ItemStack(mapPlannerCostItem(ingredientJson.get("item").getAsString())));
+        return Ingredient.of(mapPlannerCostItem(ingredientJson.get("item").getAsString()));
     }
 
     private static Item mapPlannerCostItem(String itemId) {
