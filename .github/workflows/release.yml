@@ -79,18 +79,19 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
+          enabled_platforms=",${{ steps.versions.outputs.enabled_platforms }},"
 
-          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"fabric"* ]]; then
+          if [[ "$enabled_platforms" == *",fabric,"* ]]; then
             cp fabric/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
               release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-fabric-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
           fi
 
-          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"neoforge"* ]]; then
+          if [[ "$enabled_platforms" == *",neoforge,"* ]]; then
             cp neoforge/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
               release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-neoforge-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
           fi
 
-          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"forge"* ]]; then
+          if [[ "$enabled_platforms" == *",forge,"* ]]; then
             cp forge/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
               release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-forge-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
           fi

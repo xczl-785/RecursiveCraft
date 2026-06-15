@@ -44,21 +44,21 @@ jobs:
         run: ./gradlew clean build --no-daemon --console=plain
 
       - name: Upload Fabric artifacts
-        if: contains(steps.platforms.outputs.enabled_platforms, 'fabric')
+        if: contains(format(',{0},', steps.platforms.outputs.enabled_platforms), ',fabric,')
         uses: actions/upload-artifact@v4
         with:
           name: fabric-${{ github.ref_name }}
           path: fabric/build/libs/*.jar
 
       - name: Upload NeoForge artifacts
-        if: contains(steps.platforms.outputs.enabled_platforms, 'neoforge')
+        if: contains(format(',{0},', steps.platforms.outputs.enabled_platforms), ',neoforge,')
         uses: actions/upload-artifact@v4
         with:
           name: neoforge-${{ github.ref_name }}
           path: neoforge/build/libs/*.jar
 
       - name: Upload Forge artifacts
-        if: contains(steps.platforms.outputs.enabled_platforms, 'forge')
+        if: contains(format(',{0},', steps.platforms.outputs.enabled_platforms), ',forge,')
         uses: actions/upload-artifact@v4
         with:
           name: forge-${{ github.ref_name }}
