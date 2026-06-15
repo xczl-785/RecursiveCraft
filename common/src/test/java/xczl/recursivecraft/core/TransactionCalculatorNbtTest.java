@@ -498,7 +498,7 @@ class TransactionCalculatorNbtTest {
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
         PlacementInfo info = PlacementInfo.create(ingredients);
-        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(result.getItem());
+        SlotDisplay resultDisplay = new SlotDisplay.ItemStackSlotDisplay(result.copy());
         RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
         List<RecipeDisplay> displays = List.of(display);
         when(recipe.placementInfo()).thenReturn(info);
@@ -642,7 +642,8 @@ class TransactionCalculatorNbtTest {
     private static CraftingRecipe recipeForPlannerCost(JsonObject recipeJson, ResourceKey<Recipe<?>> id) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         PlacementInfo info = PlacementInfo.create(plannerCostIngredients(recipeJson));
-        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(Items.STICK);
+        ItemStack resultStack = new ItemStack(mapPlannerCostItem(resultItemId(recipeJson)), plannerCostResultCount(recipeJson));
+        SlotDisplay resultDisplay = new SlotDisplay.ItemStackSlotDisplay(resultStack);
         RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
         List<RecipeDisplay> displays = List.of(display);
         when(recipe.placementInfo()).thenReturn(info);
@@ -687,6 +688,7 @@ class TransactionCalculatorNbtTest {
     private static Item mapPlannerCostItem(String itemId) {
         return switch (itemId) {
             case "recursivecraft:recursive_crafter" -> Items.DIAMOND;
+            case "recursivecraft:handheld_crafter" -> Items.CRAFTING_TABLE;
             case "minecraft:crafting_table" -> Items.CRAFTING_TABLE;
             case "minecraft:redstone_block" -> Items.REDSTONE_BLOCK;
             case "minecraft:lapis_block" -> Items.LAPIS_BLOCK;

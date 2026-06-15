@@ -21,23 +21,29 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
 import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.core.CraftingPlanner;
+import xczl.recursivecraft.networking.C2SRecipeTransferPacket;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
 import xczl.recursivecraft.networking.PacketHandler;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> implements IRecipeTransferHandler<C, RecipeHolder<CraftingRecipe>> {
+    private static final List<Integer> PLAYER_GRID_INPUT_INDEXES = List.of(0, 1, 3, 4);
 
     private final Class<C> containerClass;
     private final IRecipeTransferHandlerHelper transferHelper;
@@ -110,17 +116,29 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                 return transferHelper.createUserErrorWithTooltip(warningText);
             }
 
-            List<IRecipeSlotView> missingSlots = calculateMissingSlots(recipe, recipeSlots, player);
-            if (!missingSlots.isEmpty()) {
+            StandardTransferPlan plan = createStandardTransferPlan(container, recipeSlots, player);
+            if (!plan.missingSlots().isEmpty()) {
                 return transferHelper.createUserErrorForMissingSlots(
                         Component.translatable("recursivecraft.msg.missing_ingredients").withStyle(ChatFormatting.RED),
-                        missingSlots
+                        plan.missingSlots()
                 );
             }
 
-            // NOTE: ServerboundPlaceRecipePacket now requires RecipeDisplayId (int index)
-            // which cannot be reliably obtained from RecipeHolder in 1.21.8.
-            // Standard vanilla transfer is deferred; RecursiveCraft's own transfer (Ctrl+click) works fine.
+            if (plan.inventoryFull()) {
+                Component warningText = Component.translatable("jei.tooltip.error.recipe.transfer.inventory.full")
+                        .withStyle(ChatFormatting.RED);
+                return transferHelper.createUserErrorWithTooltip(warningText);
+            }
+
+            if (doTransfer) {
+                PacketHandler.CHANNEL.sendToServer(new C2SRecipeTransferPacket(
+                        plan.operations(),
+                        plan.craftingSlotIds(),
+                        plan.inventorySlotIds(),
+                        maxTransfer,
+                        false
+                ));
+            }
         }
 
         return null;
@@ -141,49 +159,160 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
         return true;
     }
 
-    private List<IRecipeSlotView> calculateMissingSlots(CraftingRecipe recipe, IRecipeSlotsView recipeSlots, Player player) {
-        List<IRecipeSlotView> missingViews = new ArrayList<>();
-        List<ItemStack> inventoryCopy = new ArrayList<>();
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
+    static StandardTransferPlan createStandardTransferPlan(AbstractContainerMenu container, IRecipeSlotsView recipeSlots, Player player) {
+        List<Slot> craftingSlots = craftingSlotsFor(container);
+        List<Slot> inventorySlots = inventorySlotsFor(container);
+        if (craftingSlots.isEmpty() || inventorySlots.isEmpty()) {
+            return new StandardTransferPlan(List.of(), List.of(), List.of(), true, List.of());
+        }
+
+        List<IRecipeSlotView> inputViews = recipeSlots.getSlotViews(RecipeIngredientRole.INPUT);
+        List<IRecipeSlotView> filteredInputViews = container instanceof InventoryMenu
+                ? filterPlayerInventoryInputs(inputViews)
+                : inputViews;
+
+        InventoryState inventoryState = buildInventoryState(craftingSlots, inventorySlots);
+        boolean inventoryFull = !inventoryState.hasRoom(filteredInputViews.size());
+
+        Map<Slot, ItemStack> availableItemStacks = inventoryState.availableItemStacks();
+        List<C2SRecipeTransferPacket.TransferOperation> operations = new ArrayList<>();
+        List<IRecipeSlotView> missingItems = new ArrayList<>();
+
+        int bound = Math.min(filteredInputViews.size(), craftingSlots.size());
+        for (int i = 0; i < bound; i++) {
+            IRecipeSlotView requiredSlotView = filteredInputViews.get(i);
+            if (requiredSlotView.isEmpty()) {
+                continue;
+            }
+
+            Slot craftingSlot = craftingSlots.get(i);
+            Slot matchingSlot = findMatchingSlot(requiredSlotView, availableItemStacks);
+            if (matchingSlot == null) {
+                missingItems.add(requiredSlotView);
+                continue;
+            }
+
+            ItemStack matchingStack = availableItemStacks.get(matchingSlot);
+            matchingStack.shrink(1);
+            operations.add(new C2SRecipeTransferPacket.TransferOperation(matchingSlot.index, craftingSlot.index));
+        }
+
+        return new StandardTransferPlan(
+                operations,
+                craftingSlots.stream().map(slot -> slot.index).toList(),
+                inventorySlots.stream().map(slot -> slot.index).toList(),
+                inventoryFull,
+                missingItems
+        );
+    }
+
+    private static Slot findMatchingSlot(IRecipeSlotView requiredSlotView, Map<Slot, ItemStack> availableItemStacks) {
+        List<ItemStack> acceptableStacks = acceptableStacks(requiredSlotView);
+        if (acceptableStacks.isEmpty()) {
+            return null;
+        }
+
+        Slot bestSlot = null;
+        int bestCount = -1;
+        for (Map.Entry<Slot, ItemStack> entry : availableItemStacks.entrySet()) {
+            ItemStack availableStack = entry.getValue();
+            if (availableStack.isEmpty() || !matchesAny(availableStack, acceptableStacks)) {
+                continue;
+            }
+            if (availableStack.getCount() > bestCount || (availableStack.getCount() == bestCount && bestSlot != null && entry.getKey().index < bestSlot.index)) {
+                bestSlot = entry.getKey();
+                bestCount = availableStack.getCount();
+            }
+        }
+        return bestSlot;
+    }
+
+    private static boolean matchesAny(ItemStack availableStack, List<ItemStack> acceptableStacks) {
+        for (ItemStack acceptableStack : acceptableStacks) {
+            if (ItemStack.isSameItemSameComponents(acceptableStack, availableStack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<ItemStack> acceptableStacks(IRecipeSlotView requiredSlotView) {
+        return requiredSlotView.getAllIngredientsList().stream()
+                .filter(Objects::nonNull)
+                .map(typedIngredient -> typedIngredient.castToItemStackType())
+                .filter(Objects::nonNull)
+                .map(typedIngredient -> typedIngredient.getIngredient().copy())
+                .toList();
+    }
+
+    private static InventoryState buildInventoryState(Collection<Slot> craftingSlots, Collection<Slot> inventorySlots) {
+        Map<Slot, ItemStack> availableItemStacks = new HashMap<>();
+        int filledCraftSlotCount = 0;
+        int emptySlotCount = 0;
+
+        for (Slot slot : craftingSlots) {
+            ItemStack stack = slot.getItem();
             if (!stack.isEmpty()) {
-                inventoryCopy.add(stack.copy());
+                filledCraftSlotCount++;
+                availableItemStacks.put(slot, stack.copy());
             }
         }
 
-        List<Ingredient> requiredIngredients = new ArrayList<>();
-        for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
-            if (!ingredient.isEmpty()) {
-                requiredIngredients.add(ingredient);
+        for (Slot slot : inventorySlots) {
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty()) {
+                availableItemStacks.put(slot, stack.copy());
+            } else {
+                emptySlotCount++;
             }
         }
 
-        List<IRecipeSlotView> activeSlotViews = new ArrayList<>();
-        for (IRecipeSlotView view : recipeSlots.getSlotViews(RecipeIngredientRole.INPUT)) {
-            if (!view.isEmpty()) {
-                activeSlotViews.add(view);
+        return new InventoryState(availableItemStacks, filledCraftSlotCount, emptySlotCount);
+    }
+
+    private static List<IRecipeSlotView> filterPlayerInventoryInputs(List<IRecipeSlotView> slotViews) {
+        List<IRecipeSlotView> filtered = new ArrayList<>(PLAYER_GRID_INPUT_INDEXES.size());
+        for (Integer index : PLAYER_GRID_INPUT_INDEXES) {
+            if (index < slotViews.size()) {
+                filtered.add(slotViews.get(index));
             }
         }
+        return filtered;
+    }
 
-        int checkCount = Math.min(requiredIngredients.size(), activeSlotViews.size());
-        for (int i = 0; i < checkCount; i++) {
-            Ingredient ingredient = requiredIngredients.get(i);
-            IRecipeSlotView view = activeSlotViews.get(i);
-
-            boolean found = false;
-            for (ItemStack invStack : inventoryCopy) {
-                if (!invStack.isEmpty() && ingredient.test(invStack)) {
-                    invStack.shrink(1);
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                missingViews.add(view);
-            }
+    private static List<Slot> craftingSlotsFor(AbstractContainerMenu container) {
+        if (container instanceof InventoryMenu) {
+            return container.slots.size() >= 5 ? container.slots.subList(1, 5) : List.of();
         }
+        if (container instanceof CraftingMenu) {
+            return container.slots.size() >= 10 ? container.slots.subList(1, 10) : List.of();
+        }
+        return List.of();
+    }
 
-        return missingViews;
+    private static List<Slot> inventorySlotsFor(AbstractContainerMenu container) {
+        if (container instanceof InventoryMenu) {
+            return container.slots.size() >= 45 ? container.slots.subList(9, 45) : List.of();
+        }
+        if (container instanceof CraftingMenu) {
+            return container.slots.size() >= 46 ? container.slots.subList(10, 46) : List.of();
+        }
+        return List.of();
+    }
+
+    record StandardTransferPlan(List<C2SRecipeTransferPacket.TransferOperation> operations,
+                                List<Integer> craftingSlotIds,
+                                List<Integer> inventorySlotIds,
+                                boolean inventoryFull,
+                                List<IRecipeSlotView> missingSlots) {
+    }
+
+    private record InventoryState(Map<Slot, ItemStack> availableItemStacks,
+                                  int filledCraftSlotCount,
+                                  int emptySlotCount) {
+        private boolean hasRoom(int inputCount) {
+            return filledCraftSlotCount - inputCount <= emptySlotCount;
+        }
     }
 
     private static class SimpleError implements IRecipeTransferError {

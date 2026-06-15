@@ -1,12 +1,19 @@
 package xczl.recursivecraft.compat.jei;
 
 import com.google.gson.JsonObject;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
+import net.minecraft.world.entity.EntityEquipment;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -14,9 +21,11 @@ import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.inventory.CraftingMenu;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.networking.C2SExecuteCraftPacket;
+import xczl.recursivecraft.networking.C2SRecipeTransferPacket;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
@@ -24,12 +33,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RecursiveCraftTransferHandlerTest {
     @BeforeAll
@@ -81,8 +93,8 @@ class RecursiveCraftTransferHandlerTest {
 
         assertEquals(1, redPacket.amount());
         assertEquals(64, bluePacket.amount());
-        assertEquals(redRecipeHolder.id(), redPacket.forcedRecipeId());
-        assertEquals(blueRecipeHolder.id(), bluePacket.forcedRecipeId());
+        assertEquals(redRecipeHolder.id().location(), redPacket.forcedRecipeId());
+        assertEquals(blueRecipeHolder.id().location(), bluePacket.forcedRecipeId());
         assertNotNull(redPacket.targetOutputSpec());
         assertNotNull(bluePacket.targetOutputSpec());
         assertEquals(Items.CRAFTING_TABLE, redPacket.targetItem());
@@ -92,8 +104,42 @@ class RecursiveCraftTransferHandlerTest {
         assertEquals("red", redPacket.targetOutputSpec().tag().getCompoundOrEmpty("recursivecraft_debug").getString("variant").orElse(""));
         assertEquals("blue", bluePacket.targetOutputSpec().tag().getCompoundOrEmpty("recursivecraft_debug").getString("variant").orElse(""));
         assertNotEquals(redPacket.targetOutputSpec().tag(), bluePacket.targetOutputSpec().tag());
-        assertEquals("red-source", ItemStackComponentSupport.copyCustomData(redPacket.displayedIngredients().get(0)).getString("variant"));
-        assertEquals("blue-source", ItemStackComponentSupport.copyCustomData(bluePacket.displayedIngredients().get(0)).getString("variant"));
+        assertEquals("red-source", ItemStackComponentSupport.copyCustomData(redPacket.displayedIngredients().get(0)).getString("variant").orElse(""));
+        assertEquals("blue-source", ItemStackComponentSupport.copyCustomData(bluePacket.displayedIngredients().get(0)).getString("variant").orElse(""));
+    }
+
+    @Test
+    void createStandardTransferPlan_shouldPreserveDistinctComponentVariantsForSameItem() {
+        CraftingMenu menu = new CraftingMenu(0, new Inventory(mock(Player.class), mock(EntityEquipment.class)));
+        ItemStack redSource = taggedStack(Items.WHITE_WOOL, "variant", "red-source");
+        ItemStack blueSource = taggedStack(Items.WHITE_WOOL, "variant", "blue-source");
+        menu.getSlot(10).set(blueSource.copy());
+        menu.getSlot(11).set(redSource.copy());
+
+        IRecipeSlotView recipeSlotView = slotView(redSource);
+        IRecipeSlotView emptyRecipeSlotView = emptySlotView();
+        IRecipeSlotsView recipeSlotsView = mock(IRecipeSlotsView.class);
+        when(recipeSlotsView.getSlotViews(RecipeIngredientRole.INPUT)).thenReturn(List.of(
+                recipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView,
+                emptyRecipeSlotView
+        ));
+
+        RecursiveCraftTransferHandler.StandardTransferPlan plan =
+                RecursiveCraftTransferHandler.createStandardTransferPlan(menu, recipeSlotsView, null);
+
+        assertFalse(plan.inventoryFull());
+        assertTrue(plan.missingSlots().isEmpty());
+        assertEquals(1, plan.operations().size());
+        C2SRecipeTransferPacket.TransferOperation operation = plan.operations().get(0);
+        assertEquals(11, operation.inventorySlotId());
+        assertEquals(1, operation.craftingSlotId());
     }
 
     private static ItemStack taggedStack(Item item, String key, String value) {
@@ -125,5 +171,29 @@ class RecursiveCraftTransferHandlerTest {
             assertNotNull(input, "Missing recipe resource: " + resourcePath);
             return GsonHelper.parse(new String(input.readAllBytes(), StandardCharsets.UTF_8));
         }
+    }
+
+    private static IRecipeSlotView slotView(ItemStack... stacks) {
+        IRecipeSlotView slotView = mock(IRecipeSlotView.class);
+        when(slotView.isEmpty()).thenReturn(stacks.length == 0);
+        when(slotView.getDisplayedItemStack()).thenReturn(stacks.length == 0 ? Optional.empty() : Optional.of(stacks[0].copy()));
+        List<ITypedIngredient<?>> ingredients = new java.util.ArrayList<>();
+        for (ItemStack stack : stacks) {
+            ingredients.add(typedIngredient(stack));
+        }
+        when(slotView.getAllIngredientsList()).thenReturn(ingredients);
+        return slotView;
+    }
+
+    private static IRecipeSlotView emptySlotView() {
+        return slotView();
+    }
+
+    private static ITypedIngredient<ItemStack> typedIngredient(ItemStack stack) {
+        @SuppressWarnings("unchecked")
+        ITypedIngredient<ItemStack> ingredient = mock(ITypedIngredient.class);
+        when(ingredient.castToItemStackType()).thenReturn(ingredient);
+        when(ingredient.getIngredient()).thenReturn(stack.copy());
+        return ingredient;
     }
 }

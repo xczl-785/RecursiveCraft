@@ -253,7 +253,7 @@ class CraftingTaskExecutorNbtTest {
             ingredients.add(ingredient);
         }
         PlacementInfo info = PlacementInfo.create(ingredients);
-        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(result.getItem());
+        SlotDisplay resultDisplay = new SlotDisplay.ItemStackSlotDisplay(result.copy());
         RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
         List<RecipeDisplay> displays = List.of(display);
         when(recipe.placementInfo()).thenReturn(info);

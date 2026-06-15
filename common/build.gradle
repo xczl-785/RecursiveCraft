@@ -17,6 +17,7 @@ dependencies {
 
     // [新增] JEI Common API (仅编译期依赖，防止游戏运行崩溃)
     compileOnly "mezz.jei:jei-1.21.8-common-api:24.2.0.6"
+    testImplementation "mezz.jei:jei-1.21.8-common-api:24.2.0.6"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.2"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.2"

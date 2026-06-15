@@ -423,7 +423,11 @@ class TransactionCalculatorTest {
     }
 
     private static RecipeHolder<CraftingRecipe> mockRecipe(Item resultItem, int resultCount, Ingredient ingredient, String id) {
-        return mockRecipeWithIngredients(resultItem, resultCount, id, ingredient);
+        return mockRecipeWithIngredients(new ItemStack(resultItem, resultCount), id, ingredient);
+    }
+
+    private static RecipeHolder<CraftingRecipe> mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {
+        return mockRecipeWithIngredients(new ItemStack(resultItem, resultCount), id, recipeIngredients);
     }
 
     private static ItemStack stackWithDefaultDamageTag(Item item) {
@@ -438,14 +442,14 @@ class TransactionCalculatorTest {
         return stack;
     }
 
-    private static RecipeHolder<CraftingRecipe> mockRecipeWithIngredients(Item resultItem, int resultCount, String id, Ingredient... recipeIngredients) {
+    private static RecipeHolder<CraftingRecipe> mockRecipeWithIngredients(ItemStack resultStack, String id, Ingredient... recipeIngredients) {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         for (Ingredient ingredient : recipeIngredients) {
             ingredients.add(ingredient);
         }
         PlacementInfo info = PlacementInfo.create(ingredients);
-        SlotDisplay resultDisplay = new SlotDisplay.ItemSlotDisplay(resultItem);
+        SlotDisplay resultDisplay = new SlotDisplay.ItemStackSlotDisplay(resultStack.copy());
         RecipeDisplay display = new ShapelessCraftingRecipeDisplay(List.of(), resultDisplay, SlotDisplay.Empty.INSTANCE);
         List<RecipeDisplay> displays = List.of(display);
         when(recipe.placementInfo()).thenReturn(info);

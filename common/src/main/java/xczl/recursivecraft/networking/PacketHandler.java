@@ -17,6 +17,13 @@ public class PacketHandler {
                 C2SExecuteCraftPacket::handle
         );
 
+        CHANNEL.register(
+                C2SRecipeTransferPacket.class,
+                C2SRecipeTransferPacket::encode,
+                C2SRecipeTransferPacket::decode,
+                C2SRecipeTransferPacket::handle
+        );
+
         RecursiveCraft.LOGGER.info("RecursiveCraft: Networking registered.");
     }
 }
