@@ -15,11 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ github.ref_name == '1.20.1' && '17' || '21' }}
           cache: gradle
 
       - name: Make Gradle wrapper executable
@@ -35,7 +35,15 @@ jobs:
           path: fabric/build/libs/*.jar
 
       - name: Upload Forge artifacts
+        if: ${{ hashFiles('forge/build/libs/*.jar') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: forge-${{ github.ref_name }}
           path: forge/build/libs/*.jar
+
+      - name: Upload NeoForge artifacts
+        if: ${{ hashFiles('neoforge/build/libs/*.jar') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: neoforge-${{ github.ref_name }}
+          path: neoforge/build/libs/*.jar
