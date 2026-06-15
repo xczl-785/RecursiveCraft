@@ -5,7 +5,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -22,7 +22,7 @@ public class C2SExecuteCraftPacket {
 
     private final Item targetItem;
     private final int amount;
-    private final @Nullable ResourceLocation forcedRecipeId;
+    private final @Nullable Identifier forcedRecipeId;
     private final @Nullable TargetOutputSpec targetOutputSpec;
     private final @Nullable List<ItemStack> displayedIngredients;
 
@@ -30,16 +30,16 @@ public class C2SExecuteCraftPacket {
         this(targetItem, amount, null, null, null);
     }
 
-    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable ResourceLocation forcedRecipeId) {
+    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable Identifier forcedRecipeId) {
         this(targetItem, amount, forcedRecipeId, null, null);
     }
 
-    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable ResourceLocation forcedRecipeId,
+    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable Identifier forcedRecipeId,
                                  @Nullable TargetOutputSpec targetOutputSpec) {
         this(targetItem, amount, forcedRecipeId, targetOutputSpec, null);
     }
 
-    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable ResourceLocation forcedRecipeId,
+    public C2SExecuteCraftPacket(Item targetItem, int amount, @Nullable Identifier forcedRecipeId,
                                  @Nullable TargetOutputSpec targetOutputSpec,
                                  @Nullable List<ItemStack> displayedIngredients) {
         this.targetItem = targetItem == null ? Items.AIR : targetItem;
@@ -57,7 +57,7 @@ public class C2SExecuteCraftPacket {
         return amount;
     }
 
-    public @Nullable ResourceLocation forcedRecipeId() {
+    public @Nullable Identifier forcedRecipeId() {
         return forcedRecipeId;
     }
 
@@ -81,7 +81,7 @@ public class C2SExecuteCraftPacket {
         buf.writeInt(amount);
         buf.writeBoolean(forcedRecipeId != null);
         if (forcedRecipeId != null) {
-            buf.writeResourceLocation(forcedRecipeId);
+            buf.writeIdentifier(forcedRecipeId);
         }
         buf.writeBoolean(targetOutputSpec != null);
         if (targetOutputSpec != null) {
@@ -100,9 +100,9 @@ public class C2SExecuteCraftPacket {
     public static C2SExecuteCraftPacket decode(FriendlyByteBuf buf) {
         Item item = buf.readById(BuiltInRegistries.ITEM::byId);
         int amount = buf.readInt();
-        ResourceLocation recipeId = null;
+        Identifier recipeId = null;
         if (buf.readBoolean()) {
-            recipeId = buf.readResourceLocation();
+            recipeId = buf.readIdentifier();
         }
 
         TargetOutputSpec targetOutputSpec = null;

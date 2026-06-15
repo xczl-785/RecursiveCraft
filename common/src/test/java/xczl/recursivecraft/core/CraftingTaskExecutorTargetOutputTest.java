@@ -1,12 +1,15 @@
 package xczl.recursivecraft.core;
 
 import com.google.gson.JsonObject;
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,6 +30,7 @@ import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
+import xczl.recursivecraft.runtime.match.ItemStackHolder;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import java.io.IOException;
@@ -280,7 +284,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_stick"
         );
-        when(specialRecipe.value().isSpecial()).thenReturn(true);
+        when(specialRecipe.value().placementInfo()).thenReturn(net.minecraft.world.item.crafting.PlacementInfo.NOT_PLACEABLE);
 
         setPlanningResult(
                 Map.of(Items.STICK, fallbackRecipe),
@@ -288,11 +292,11 @@ class CraftingTaskExecutorTargetOutputTest {
                 Map.of(Items.STICK, List.of(fallbackRecipe))
         );
 
-        RecipeManager recipeManager = mock(RecipeManager.class);
-        org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_stick"));
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        RecipeManager recipeAccess = mock(RecipeManager.class);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
+                .when(recipeAccess).byKey(ResourceKey.create(Registries.RECIPE, Identifier.fromNamespaceAndPath("test", "special_stick")));
+        when(level.recipeAccess()).thenReturn(recipeAccess);
 
         ServerPlayer player = mockPlayer(mockInventory(new ItemStack(Items.OAK_LOG)));
         when(player.level()).thenReturn(level);
@@ -302,7 +306,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                ResourceLocation.parse("test:special_stick"),
+                Identifier.fromNamespaceAndPath("test", "special_stick"),
                 null,
                 messages::add
         );
@@ -320,13 +324,13 @@ class CraftingTaskExecutorTargetOutputTest {
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_red_stick"
         );
-        when(specialRecipe.value().isSpecial()).thenReturn(true);
+        when(specialRecipe.value().placementInfo()).thenReturn(net.minecraft.world.item.crafting.PlacementInfo.NOT_PLACEABLE);
 
-        RecipeManager recipeManager = mock(RecipeManager.class);
+        RecipeManager recipeAccess = mock(RecipeManager.class);
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick"));
+                .when(recipeAccess).byKey(ResourceKey.create(Registries.RECIPE, Identifier.fromNamespaceAndPath("test", "special_red_stick")));
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        when(level.recipeAccess()).thenReturn(recipeAccess);
 
         ItemStack oakLog = new ItemStack(Items.OAK_LOG);
         ServerPlayer player = mockPlayer(mockInventory(oakLog));
@@ -337,7 +341,7 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                ResourceLocation.parse("test:special_red_stick"),
+                Identifier.fromNamespaceAndPath("test", "special_red_stick"),
                 TargetOutputSpec.fromStack(redDisplayedOutput),
                 List.of(new ItemStack(Items.OAK_LOG)),
                 messages::add
@@ -358,13 +362,13 @@ class CraftingTaskExecutorTargetOutputTest {
                 ingredientOf(new ItemStack(Items.BIRCH_LOG)),
                 "test:special_red_stick_missing"
         );
-        when(specialRecipe.value().isSpecial()).thenReturn(true);
+        when(specialRecipe.value().placementInfo()).thenReturn(net.minecraft.world.item.crafting.PlacementInfo.NOT_PLACEABLE);
 
-        RecipeManager recipeManager = mock(RecipeManager.class);
+        RecipeManager recipeAccess = mock(RecipeManager.class);
         org.mockito.Mockito.doReturn(java.util.Optional.of(specialRecipe))
-                .when(recipeManager).byKey(ResourceLocation.parse("test:special_red_stick_missing"));
+                .when(recipeAccess).byKey(ResourceKey.create(Registries.RECIPE, Identifier.fromNamespaceAndPath("test", "special_red_stick_missing")));
         ServerLevel level = mock(ServerLevel.class);
-        when(level.getRecipeManager()).thenReturn(recipeManager);
+        when(level.recipeAccess()).thenReturn(recipeAccess);
 
         RecipeHolder<CraftingRecipe> planksRecipe = mockRecipe(
                 new ItemStack(Items.OAK_PLANKS, 4),
@@ -385,15 +389,15 @@ class CraftingTaskExecutorTargetOutputTest {
                 player,
                 Items.STICK,
                 1,
-                ResourceLocation.parse("test:special_red_stick_missing"),
+                Identifier.fromNamespaceAndPath("test", "special_red_stick_missing"),
                 TargetOutputSpec.fromStack(redDisplayedOutput),
                 List.of(new ItemStack(Items.OAK_PLANKS, 2), new ItemStack(Items.DIAMOND)),
                 messages::add
         );
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getName().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName().getString())));
     }
 
     @Test
@@ -441,7 +445,7 @@ class CraftingTaskExecutorTargetOutputTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.STICK, 1, null, null, messages::add);
 
         assertTrue(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains(Items.RED_DYE.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains(Items.RED_DYE.getName().getString())));
         assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("Crimson Debug Stick")));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("MaterialKey{")));
     }
@@ -452,7 +456,7 @@ class CraftingTaskExecutorTargetOutputTest {
 
         String display = CraftingTaskExecutor.describeMaterialKeyForPlayer(key);
 
-        assertTrue(display.contains(Items.STICK.getDescription().getString()));
+        assertTrue(display.contains(Items.STICK.getName().getString()));
         assertTrue(display.contains("variant=red-output"));
         assertFalse(display.contains("MaterialKey{"));
     }
@@ -477,9 +481,12 @@ class CraftingTaskExecutorTargetOutputTest {
         CraftingRecipe recipe = mock(CraftingRecipe.class);
         NonNullList<Ingredient> ingredients = NonNullList.create();
         ingredients.add(ingredient);
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(result.copy());
-        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
+        net.minecraft.world.item.crafting.PlacementInfo placementInfo = mock(net.minecraft.world.item.crafting.PlacementInfo.class);
+        when(placementInfo.ingredients()).thenReturn(ingredients);
+        when(recipe.placementInfo()).thenReturn(placementInfo);
+        when(recipe.assemble(any(), any())).thenReturn(result.copy());
+        String[] parts = id.split(":", 2);
+        return new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, Identifier.fromNamespaceAndPath(parts[0], parts[1])), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -488,7 +495,7 @@ class CraftingTaskExecutorTargetOutputTest {
         for (int i = 0; i < options.length; i++) {
             copies[i] = options[i].copy();
         }
-        when(ingredient.getItems()).thenReturn(copies);
+        when(ingredient.items()).thenAnswer(inv -> java.util.stream.Stream.of(copies).map(stack -> (Holder) new ItemStackHolder(stack)));
         when(ingredient.isEmpty()).thenReturn(options.length == 0);
         return ingredient;
     }

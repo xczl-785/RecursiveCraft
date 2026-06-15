@@ -2,7 +2,10 @@ package xczl.recursivecraft.core;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -19,6 +22,7 @@ import xczl.recursivecraft.runtime.material.DefaultMaterialIdentityNormalizer;
 import xczl.recursivecraft.runtime.material.MaterialKey;
 import xczl.recursivecraft.runtime.material.NormalizationKind;
 import xczl.recursivecraft.runtime.material.NormalizationResult;
+import xczl.recursivecraft.runtime.material.RecipeHelper;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.util.ArrayList;
@@ -46,19 +50,19 @@ public class CraftingTaskExecutor {
         }
     }
 
-    public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, ResourceLocation forcedRecipeId, Consumer<Component> msgSender) {
+    public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount, Identifier forcedRecipeId, Consumer<Component> msgSender) {
         return tryExecute(player, targetItem, amount, forcedRecipeId, null, null, msgSender);
     }
 
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount,
-                                     @Nullable ResourceLocation forcedRecipeId,
+                                     @Nullable Identifier forcedRecipeId,
                                      @Nullable TargetOutputSpec targetOutputSpec,
                                      Consumer<Component> msgSender) {
         return tryExecute(player, targetItem, amount, forcedRecipeId, targetOutputSpec, null, msgSender);
     }
 
     public static boolean tryExecute(ServerPlayer player, Item targetItem, int amount,
-                                     @Nullable ResourceLocation forcedRecipeId,
+                                     @Nullable Identifier forcedRecipeId,
                                      @Nullable TargetOutputSpec targetOutputSpec,
                                      @Nullable List<ItemStack> displayedIngredients,
                                      Consumer<Component> msgSender) {
@@ -147,11 +151,13 @@ public class CraftingTaskExecutor {
         return result.key();
     }
 
-    private static @Nullable RecipeHolder<CraftingRecipe> resolveRecipe(ServerPlayer player, Item targetItem, ResourceLocation forcedRecipeId) {
+    private static @Nullable RecipeHolder<CraftingRecipe> resolveRecipe(ServerPlayer player, Item targetItem, Identifier forcedRecipeId) {
         if (forcedRecipeId != null) {
-            Optional<RecipeHolder<?>> opt = player.level().getRecipeManager().byKey(forcedRecipeId);
+            ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> recipeKey =
+                    ResourceKey.create(Registries.RECIPE, forcedRecipeId);
+            Optional<RecipeHolder<?>> opt = ((ServerLevel) player.level()).recipeAccess().byKey(recipeKey);
             if (opt.isPresent() && opt.get().value() instanceof CraftingRecipe cr) {
-                if (!cr.isSpecial() && cr.getResultItem(player.level().registryAccess()).getItem() == targetItem) {
+                if (!cr.placementInfo().ingredients().isEmpty() && RecipeHelper.getResultItem(cr).getItem() == targetItem) {
                     @SuppressWarnings("unchecked")
                     RecipeHolder<CraftingRecipe> holder = (RecipeHolder<CraftingRecipe>) opt.get();
                     return holder;
@@ -163,7 +169,7 @@ public class CraftingTaskExecutor {
     }
 
     private static CraftingTransaction calculateTransaction(ServerPlayer player, Item targetItem, int amount,
-                                                            ResourceLocation forcedRecipeId, @Nullable RecipeHolder<CraftingRecipe> usedRecipe,
+                                                            Identifier forcedRecipeId, @Nullable RecipeHolder<CraftingRecipe> usedRecipe,
                                                             @Nullable MaterialKey desiredOutputKey,
                                                             @Nullable TargetOutputSpec targetOutputSpec,
                                                             @Nullable List<ItemStack> displayedIngredients,
@@ -297,7 +303,7 @@ public class CraftingTaskExecutor {
                 msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", failureReasonComponent(result.status())));
                 return false;
             }
-            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getDescription()));
+            msgSender.accept(Component.translatable("recursivecraft.msg.craft_success", amount, targetItem.getName()));
             return true;
         } catch (Exception e) {
             msgSender.accept(Component.translatable("recursivecraft.msg.craft_fail", e.getMessage()));
@@ -342,13 +348,13 @@ public class CraftingTaskExecutor {
     }
 
     static String describeMaterialKeyForPlayer(MaterialKey key) {
-        String baseName = key.item().getDescription().getString();
+        String baseName = key.item().getName().getString();
         List<String> qualifiers = collectMaterialQualifiers(key);
         return qualifiers.isEmpty() ? baseName : baseName + " [" + String.join(", ", qualifiers) + "]";
     }
 
     private static Component describeMaterialKeyForPlayerComponent(MaterialKey key) {
-        Component baseName = key.item().getDescription();
+        Component baseName = key.item().getName();
         List<Component> qualifiers = collectMaterialQualifierComponents(key);
         return qualifiers.isEmpty()
                 ? baseName

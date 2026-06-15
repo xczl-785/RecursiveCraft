@@ -5,6 +5,7 @@ on:
     branches:
       - 1.20.1
       - 1.21.1
+      - 1.21.11
   workflow_dispatch:
 
 jobs:
@@ -15,12 +16,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Select JDK version
+        id: jdk
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "1.20.1" ]; then
+            echo "version=17" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=21" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ steps.jdk.outputs.version }}
           cache: gradle
+
+      - name: Read enabled platforms
+        id: platforms
+        run: |
+          echo "enabled_platforms=$(grep '^enabled_platforms=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
@@ -29,12 +44,21 @@ jobs:
         run: ./gradlew clean build --no-daemon --console=plain
 
       - name: Upload Fabric artifacts
+        if: contains(steps.platforms.outputs.enabled_platforms, 'fabric')
         uses: actions/upload-artifact@v4
         with:
           name: fabric-${{ github.ref_name }}
           path: fabric/build/libs/*.jar
 
+      - name: Upload NeoForge artifacts
+        if: contains(steps.platforms.outputs.enabled_platforms, 'neoforge')
+        uses: actions/upload-artifact@v4
+        with:
+          name: neoforge-${{ github.ref_name }}
+          path: neoforge/build/libs/*.jar
+
       - name: Upload Forge artifacts
+        if: contains(steps.platforms.outputs.enabled_platforms, 'forge')
         uses: actions/upload-artifact@v4
         with:
           name: forge-${{ github.ref_name }}

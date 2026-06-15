@@ -8,7 +8,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,12 +41,12 @@ class C2SExecuteCraftPacketTest {
 
     @Test
     void decode_shouldPreserveLegacyShapeWhenTargetOutputSpecIsAbsent() {
-        ResourceLocation forcedRecipeId = ResourceLocation.parse("test:legacy");
+        Identifier forcedRecipeId = Identifier.fromNamespaceAndPath("test", "legacy");
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeById(net.minecraft.core.registries.BuiltInRegistries.ITEM::getId, Items.TORCH);
         buf.writeInt(4);
         buf.writeBoolean(true);
-        buf.writeResourceLocation(forcedRecipeId);
+        buf.writeIdentifier(forcedRecipeId);
 
         C2SExecuteCraftPacket decoded = C2SExecuteCraftPacket.decode(buf);
 
@@ -58,7 +58,7 @@ class C2SExecuteCraftPacketTest {
 
     @Test
     void decode_shouldPreserveTargetOutputSpecTagPayload() {
-        ResourceLocation forcedRecipeId = ResourceLocation.parse("test:tagged");
+        Identifier forcedRecipeId = Identifier.fromNamespaceAndPath("test", "tagged");
         CompoundTag tag = new CompoundTag();
         tag.putString("Potion", "minecraft:strong_healing");
         C2SExecuteCraftPacket packet = new C2SExecuteCraftPacket(

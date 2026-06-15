@@ -5,7 +5,7 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +30,7 @@ public final class ItemStackComponentSupport {
         }
         List<String> entries = new ArrayList<>(patch.size());
         for (Map.Entry<DataComponentType<?>, Optional<?>> entry : patch.entrySet()) {
-            ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(entry.getKey());
+            Identifier id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(entry.getKey());
             String componentId = id != null ? id.toString() : entry.getKey().toString();
             Object value = entry.getValue().isPresent() ? entry.getValue().get() : REMOVED_COMPONENT_MARKER;
             entries.add(componentId + "=" + value);

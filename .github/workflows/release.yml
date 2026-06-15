@@ -17,11 +17,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Read versions
+        id: versions
+        run: |
+          echo "mod_version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          echo "minecraft_version=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          echo "enabled_platforms=$(grep '^enabled_platforms=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Select JDK version
+        id: jdk
+        run: |
+          if [ "${{ steps.versions.outputs.minecraft_version }}" = "1.20.1" ]; then
+            echo "version=17" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=21" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ steps.jdk.outputs.version }}
           cache: gradle
 
       - name: Make Gradle wrapper executable
@@ -29,12 +45,6 @@ jobs:
 
       - name: Build
         run: ./gradlew clean build --no-daemon --console=plain
-
-      - name: Read versions
-        id: versions
-        run: |
-          echo "mod_version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
-          echo "minecraft_version=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Prepare release metadata
         id: release
@@ -69,8 +79,21 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          cp fabric/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-fabric-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
-          cp forge/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-forge-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
+
+          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"fabric"* ]]; then
+            cp fabric/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
+              release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-fabric-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
+          fi
+
+          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"neoforge"* ]]; then
+            cp neoforge/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
+              release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-neoforge-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
+          fi
+
+          if [[ "${{ steps.versions.outputs.enabled_platforms }}" == *"forge"* ]]; then
+            cp forge/build/libs/recursivecraft-${{ steps.versions.outputs.mod_version }}.jar \
+              release-assets/recursivecraft-mc${{ steps.versions.outputs.minecraft_version }}-forge-v${{ steps.versions.outputs.mod_version }}${{ steps.release.outputs.asset_suffix }}.jar
+          fi
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

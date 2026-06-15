@@ -4,11 +4,13 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.PlacementInfo;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.core.registries.BuiltInRegistries; // 使用原版注册表
+import net.minecraft.core.registries.BuiltInRegistries;
 import xczl.recursivecraft.RecursiveCraft;
+import xczl.recursivecraft.runtime.material.RecipeHelper;
 
 import java.util.*;
 
@@ -137,13 +139,16 @@ public class CraftingPlanner {
 
     private static Set<Item> indexRecipesAndCollectItems(RecipeManager recipeManager,
                                                          Map<Item, List<RecipeHolder<CraftingRecipe>>> recipeLookup) {
-        List<RecipeHolder<CraftingRecipe>> allRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
+        List<RecipeHolder<CraftingRecipe>> allRecipes = recipeManager.getRecipes().stream()
+                .filter(h -> h.value() instanceof CraftingRecipe)
+                .map(h -> (RecipeHolder<CraftingRecipe>) h)
+                .toList();
         Set<Item> allItems = new HashSet<>();
 
         for (RecipeHolder<CraftingRecipe> recipeHolder : allRecipes) {
             CraftingRecipe recipe = recipeHolder.value();
-            if (recipe.isSpecial() || recipe.getResultItem(null).isEmpty()) continue;
-            Item output = recipe.getResultItem(null).getItem();
+            if (recipe.placementInfo().ingredients().isEmpty() || RecipeHelper.getResultItem(recipe).isEmpty()) continue;
+            Item output = RecipeHelper.getResultItem(recipe).getItem();
             recipeLookup.computeIfAbsent(output, k -> new ArrayList<>()).add(recipeHolder);
             allItems.add(output);
         }
@@ -173,9 +178,8 @@ public class CraftingPlanner {
         for (Map.Entry<Item, List<RecipeHolder<CraftingRecipe>>> entry : recipeLookup.entrySet()) {
             for (RecipeHolder<CraftingRecipe> recipeHolder : entry.getValue()) {
                 CraftingRecipe recipe = recipeHolder.value();
-                for (Ingredient ingredient : recipe.getIngredients()) {
-                    for (ItemStack stack : ingredient.getItems()) {
-                        Item inputItem = stack.getItem();
+                for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
+                    for (Item inputItem : ingredient.items().map(holder -> holder.value()).toList()) {
                         if (minCostTable.getOrDefault(inputItem, Double.MAX_VALUE) >= Double.MAX_VALUE) {
                             itemsToRescue.add(inputItem);
                         }
@@ -254,15 +258,14 @@ public class CraftingPlanner {
     private static double calculateRecipeCost(CraftingRecipe recipe, Map<Item, Double> minCostTable) {
         double totalIngredientsCost = 0;
 
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : recipe.placementInfo().ingredients()) {
             if (ingredient.isEmpty()) continue;
-            ItemStack[] stacks = ingredient.getItems();
-            if (stacks.length == 0) return Double.MAX_VALUE;
+            List<Item> items = ingredient.items().map(holder -> holder.value()).toList();
+            if (items.isEmpty()) return Double.MAX_VALUE;
 
-            // 对于使用物品标签（Tag）的原料，选择其中成本最低的物品
             double cheapestOption = Double.MAX_VALUE;
-            for (ItemStack stack : stacks) {
-                Double itemCost = minCostTable.get(stack.getItem());
+            for (Item item : items) {
+                Double itemCost = minCostTable.get(item);
                 if (itemCost != null && itemCost < cheapestOption) {
                     cheapestOption = itemCost;
                 }
@@ -272,11 +275,10 @@ public class CraftingPlanner {
             totalIngredientsCost += cheapestOption;
         }
 
-        // 加上固定的加工成本惩罚，以打破循环
         totalIngredientsCost += RECIPE_COST_PENALTY;
 
-        int outputCount = recipe.getResultItem(null).getCount();
-        if (outputCount <= 0) outputCount = 1; // 防止除零
+        int outputCount = RecipeHelper.getResultItem(recipe).getCount();
+        if (outputCount <= 0) outputCount = 1;
 
         return totalIngredientsCost / outputCount;
     }

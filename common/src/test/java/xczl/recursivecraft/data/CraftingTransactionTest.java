@@ -102,6 +102,6 @@ class CraftingTransactionTest {
 
     private static String variant(ItemStack stack) {
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-        return customData == null ? "" : customData.copyTag().getString("variant");
+        return customData == null ? "" : customData.copyTag().getString("variant").orElse("");
     }
 }

@@ -16,7 +16,7 @@ dependencies {
     implementation 'com.belerweb:pinyin4j:2.5.1'
 
     // [新增] JEI Common API (仅编译期依赖，防止游戏运行崩溃)
-    compileOnly "mezz.jei:jei-1.21.1-common-api:19.27.0.340"
+    compileOnly "mezz.jei:jei-1.21.11-common-api:27.4.0.22"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.2"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.2"

@@ -2,8 +2,9 @@ package xczl.recursivecraft.compat.jei;
 
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.runtime.IJeiRuntime;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
@@ -12,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 import xczl.recursivecraft.RecursiveCraft;
 import xczl.recursivecraft.client.CraftableTarget;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
+import xczl.recursivecraft.runtime.material.RecipeHelper;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 
 import java.lang.reflect.Method;
@@ -65,7 +67,7 @@ public final class RecursiveCraftJeiRuntime {
                                                  Set<Item> plannerItems,
                                                  Map<String, CraftableTarget> deduped) {
         CraftingRecipe recipe = recipeHolder.value();
-        ResourceLocation recipeId = recipeHolder.id();
+        Identifier recipeId = recipeHolder.id().identifier();
 
         if (collectGroupedVariants(recipe, recipeId, plannerItems, deduped)) {
             return;
@@ -82,7 +84,7 @@ public final class RecursiveCraftJeiRuntime {
         );
     }
 
-    private static boolean collectGroupedVariants(Object recipeObject, ResourceLocation recipeId,
+    private static boolean collectGroupedVariants(Object recipeObject, Identifier recipeId,
                                                   Set<Item> plannerItems, Map<String, CraftableTarget> deduped) {
         try {
             Method getVariants = recipeObject.getClass().getMethod("getVariants");
@@ -115,7 +117,7 @@ public final class RecursiveCraftJeiRuntime {
 
     private static ItemStack safeRecipeResult(CraftingRecipe recipe) {
         try {
-            return recipe.getResultItem(RegistryAccess.EMPTY).copy();
+            return RecipeHelper.getResultItem(recipe).copy();
         } catch (Exception ignored) {
             return ItemStack.EMPTY;
         }
@@ -129,7 +131,7 @@ public final class RecursiveCraftJeiRuntime {
     }
 
     private static String targetKey(ItemStack stack) {
-        ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+        Identifier itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
         return itemId + "|" + ItemStackComponentSupport.componentKey(stack);
     }
 

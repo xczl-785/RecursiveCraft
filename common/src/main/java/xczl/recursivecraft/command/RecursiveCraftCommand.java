@@ -11,6 +11,7 @@ import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.item.Item;
 import xczl.recursivecraft.core.CraftingTaskExecutor;
 
@@ -19,7 +20,7 @@ public class RecursiveCraftCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context) {
         dispatcher.register(
                 Commands.literal("craft_recursive")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
                         .then(Commands.argument("item", ItemArgument.item(context))
                                 .then(Commands.argument("amount", IntegerArgumentType.integer(1))
                                         .executes(RecursiveCraftCommand::run)

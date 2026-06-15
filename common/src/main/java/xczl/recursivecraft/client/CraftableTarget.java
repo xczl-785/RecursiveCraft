@@ -1,7 +1,7 @@
 package xczl.recursivecraft.client;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -14,12 +14,12 @@ import java.util.Objects;
 
 public final class CraftableTarget {
     private final ItemStack displayStack;
-    private final @Nullable ResourceLocation forcedRecipeId;
+    private final @Nullable Identifier forcedRecipeId;
     private final @Nullable TargetOutputSpec targetOutputSpec;
     private final @Nullable List<ItemStack> displayedIngredients;
 
     public CraftableTarget(ItemStack displayStack,
-                           @Nullable ResourceLocation forcedRecipeId,
+                           @Nullable Identifier forcedRecipeId,
                            @Nullable TargetOutputSpec targetOutputSpec,
                            @Nullable List<ItemStack> displayedIngredients) {
         if (displayStack == null || displayStack.isEmpty()) {
@@ -39,7 +39,7 @@ public final class CraftableTarget {
         return displayStack.copy();
     }
 
-    public @Nullable ResourceLocation forcedRecipeId() {
+    public @Nullable Identifier forcedRecipeId() {
         return forcedRecipeId;
     }
 
@@ -52,7 +52,7 @@ public final class CraftableTarget {
     }
 
     public String searchKey() {
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(displayStack.getItem());
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(displayStack.getItem());
         return itemId + "|" + ItemStackComponentSupport.componentKey(displayStack);
     }
 
@@ -103,7 +103,7 @@ public final class CraftableTarget {
         if (spec == null) {
             return "";
         }
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(spec.item());
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(spec.item());
         return itemId + "|" + ItemStackComponentSupport.componentKey(spec.componentsPatch());
     }
 
@@ -128,7 +128,7 @@ public final class CraftableTarget {
         }
         List<String> keys = new ArrayList<>(ingredients.size());
         for (ItemStack stack : ingredients) {
-            ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
             keys.add(id + "|" + stack.getCount() + "|" + ItemStackComponentSupport.componentKey(stack));
         }
         return keys;

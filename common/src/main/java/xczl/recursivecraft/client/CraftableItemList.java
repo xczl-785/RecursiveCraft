@@ -6,6 +6,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import xczl.recursivecraft.core.CraftingPlanner;
 import xczl.recursivecraft.compat.jei.RecursiveCraftJeiRuntime;
+import xczl.recursivecraft.runtime.material.RecipeHelper;
 import xczl.recursivecraft.runtime.material.TargetOutputSpec;
 import xczl.recursivecraft.utils.PinyinUtils;
 
@@ -53,7 +54,7 @@ public class CraftableItemList {
 
         for (Item item : plannerItems) {
             ItemStack displayStack = CraftingPlanner.getInstance().getResult().getPathMemo().get(item) != null
-                    ? CraftingPlanner.getInstance().getResult().getPathMemo().get(item).getResultItem(null).copy()
+                    ? RecipeHelper.getResultItem(CraftingPlanner.getInstance().getResult().getPathMemo().get(item)).copy()
                     : new ItemStack(item);
             if (displayStack.isEmpty()) {
                 displayStack = new ItemStack(item);

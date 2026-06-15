@@ -15,7 +15,7 @@ import net.minecraft.nbt.LongArrayTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
@@ -47,7 +47,7 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
                     }
                     continue;
                 }
-                ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(entry.getKey());
+                Identifier id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(entry.getKey());
                 String componentId = id != null ? id.toString() : entry.getKey().toString();
                 Object value = entry.getValue().isPresent() ? entry.getValue().get() : "<removed>";
                 fields.add(new CanonicalField("component:" + componentId, value.toString()));
@@ -59,7 +59,7 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
     }
 
     private boolean addCustomDataFields(List<CanonicalField> fields, CompoundTag tag) {
-        for (String key : tag.getAllKeys()) {
+        for (String key : tag.keySet()) {
             String canonical = canonicalizeTag(tag.get(key));
             if (canonical == null) {
                 return false;
@@ -74,11 +74,11 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
         byte id = tag.getId();
         if (tag instanceof NumericTag n) {
             if (tag instanceof FloatTag || tag instanceof DoubleTag) {
-                return id + ":" + Double.toString(n.getAsDouble());
+                return id + ":" + Double.toString(n.doubleValue());
             }
-            return id + ":" + Long.toString(n.getAsLong());
+            return id + ":" + Long.toString(n.longValue());
         }
-        if (tag instanceof StringTag s) return id + ":" + s.getAsString();
+        if (tag instanceof StringTag s) return id + ":" + s.value();
         if (tag instanceof ByteArrayTag b) return id + ":" + java.util.Arrays.toString(b.getAsByteArray());
         if (tag instanceof IntArrayTag i) return id + ":" + java.util.Arrays.toString(i.getAsIntArray());
         if (tag instanceof LongArrayTag l) return id + ":" + java.util.Arrays.toString(l.getAsLongArray());
@@ -89,11 +89,11 @@ public class DefaultMaterialIdentityNormalizer implements MaterialIdentityNormal
                 if (child == null) return null;
                 vals.add(child);
             }
-            return id + "[" + list.getElementType() + "]" + vals;
+            return id + "" + vals;
         }
         if (tag instanceof CompoundTag c) {
             List<String> entries = new ArrayList<>();
-            for (String key : c.getAllKeys()) {
+            for (String key : c.keySet()) {
                 String child = canonicalizeTag(c.get(key));
                 if (child == null) return null;
                 entries.add(key + "=" + child);

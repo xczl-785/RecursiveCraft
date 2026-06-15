@@ -1,11 +1,14 @@
 package xczl.recursivecraft.core;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
+import xczl.recursivecraft.runtime.match.ItemStackHolder;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 import xczl.recursivecraft.runtime.execution.ExecutionCommitResult;
 
@@ -63,7 +67,7 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_LOG.getName().getString())));
         assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.craft_fail") && msg.toString().contains("recursivecraft.msg.failure.missing")));
     }
 
@@ -89,8 +93,8 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.TORCH, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.DIAMOND.getName().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName().getString())));
     }
 
     @Test
@@ -123,8 +127,8 @@ class CraftingTaskExecutorNbtTest {
         boolean ok = CraftingTaskExecutor.tryExecute(player, Items.WOODEN_AXE, 1, null, messages::add);
 
         assertFalse(ok);
-        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("2x") && msg.toString().contains(Items.STICK.getDescription().getString())));
-        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getDescription().getString())));
+        assertTrue(messages.stream().anyMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains("2x") && msg.toString().contains(Items.STICK.getName().getString())));
+        assertTrue(messages.stream().noneMatch(msg -> msg.toString().contains("recursivecraft.msg.missing_materials") && msg.toString().contains(Items.OAK_PLANKS.getName().getString())));
     }
 
     @Test
@@ -244,9 +248,11 @@ class CraftingTaskExecutorNbtTest {
         for (Ingredient ingredient : recipeIngredients) {
             ingredients.add(ingredient);
         }
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(result.copy());
-        return new RecipeHolder<>(ResourceLocation.parse(id), recipe);
+        net.minecraft.world.item.crafting.PlacementInfo placementInfo = mock(net.minecraft.world.item.crafting.PlacementInfo.class);
+        when(placementInfo.ingredients()).thenReturn(ingredients);
+        when(recipe.placementInfo()).thenReturn(placementInfo);
+        when(recipe.assemble(any(), any())).thenReturn(result.copy());
+        return new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, recipeId(id)), recipe);
     }
 
     private static Ingredient ingredientOf(ItemStack... options) {
@@ -255,7 +261,7 @@ class CraftingTaskExecutorNbtTest {
         for (int i = 0; i < options.length; i++) {
             copies[i] = options[i].copy();
         }
-        when(ingredient.getItems()).thenReturn(copies);
+        when(ingredient.items()).thenAnswer(inv -> java.util.stream.Stream.of(copies).map(stack -> (Holder) new ItemStackHolder(stack)));
         when(ingredient.isEmpty()).thenReturn(options.length == 0);
         return ingredient;
     }
@@ -283,5 +289,13 @@ class CraftingTaskExecutorNbtTest {
         }
         mutator.accept(tag);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+    }
+
+    private static Identifier recipeId(String id) {
+        String[] parts = id.split(":", 2);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
+        }
+        return Identifier.fromNamespaceAndPath(parts[0], parts[1]);
     }
 }

@@ -1,5 +1,7 @@
 package xczl.recursivecraft.runtime.match;
 
+import net.minecraft.core.Holder;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import xczl.recursivecraft.runtime.material.MaterialIdentityNormalizer;
@@ -21,7 +23,8 @@ public class DefaultMaterialMatcher implements MaterialMatcher {
     public IngredientRequirement requirementOf(Ingredient ingredient) {
         List<MaterialKey> candidates = new ArrayList<>();
         boolean hasUnsupported = false;
-        for (ItemStack stack : ingredient.getItems()) {
+        for (Holder<Item> holder : (Iterable<Holder<Item>>) ingredient.items()::iterator) {
+            ItemStack stack = holder instanceof ItemStackHolder ish ? ish.stack() : new ItemStack(holder.value());
             NormalizationResult result = normalizer.normalize(stack);
             if (result.kind() == NormalizationKind.NORMALIZED) {
                 candidates.add(result.key());

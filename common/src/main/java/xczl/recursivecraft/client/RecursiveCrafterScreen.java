@@ -7,7 +7,14 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import xczl.recursivecraft.RecursiveCraft;
@@ -20,7 +27,7 @@ import java.util.List;
 
 public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCrafterMenu> {
 
-    private static final net.minecraft.resources.ResourceLocation BACKGROUND_TEXTURE = RecursiveCraft.id("textures/gui/recursive_crafter_gui.png");
+    private static final Identifier BACKGROUND_TEXTURE = RecursiveCraft.id("textures/gui/recursive_crafter_gui.png");
 
     private static final int GRID_COLS = 8;
     private static final int GRID_ROWS = 6;
@@ -58,7 +65,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.inventoryLabelY = pageButtonY;
         this.inventoryLabelX = rightPanelX - 75;
 
-        // 初始化数据
         itemList.tryLoadFromPlanner();
 
         this.searchBox = new EditBox(this.font, this.leftPos + 9, this.topPos + 7, GRID_COLS * GRID_SLOT_SIZE, 12, Component.translatable("recursivecraft.gui.search"));
@@ -86,21 +92,20 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             this.onExecutePressed();
         }).bounds(rightPanelX, executeButtonY, 60, 20).build());
 
-        // 触发第一次搜索
         itemList.search(this.searchBox.getValue());
         updatePageButtons();
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (this.searchBox.keyPressed(keyCode, scanCode, modifiers) || this.amountBox.keyPressed(keyCode, scanCode, modifiers)) {
+    public boolean keyPressed(KeyEvent event) {
+        if (this.searchBox.keyPressed(event) || this.amountBox.keyPressed(event)) {
             return true;
         }
         if ((this.searchBox.isFocused() || this.amountBox.isFocused())
-                && this.minecraft.options.keyInventory.matches(keyCode, scanCode)) {
+                && this.minecraft.options.keyInventory.matches(event)) {
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     private void updatePageButtons() {
@@ -117,7 +122,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         } catch (NumberFormatException e) {
             amount = 1;
         }
-        PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(
+        PacketHandler.sendToServer(new C2SExecuteCraftPacket(
                 this.selectedTarget.item(),
                 amount,
                 this.selectedTarget.forcedRecipeId(),
@@ -128,8 +133,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
-        RenderSystem.setShaderTexture(0, BACKGROUND_TEXTURE);
-        graphics.blit(BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight, this.imageWidth, this.imageHeight);
     }
 
     @Override
@@ -137,7 +141,6 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         this.renderBackground(graphics, mouseX, mouseY, partialTicks);
         super.render(graphics, mouseX, mouseY, partialTicks);
 
-        // 自动刷新：如果打开界面时配方还没算好，检测到就自动加载
         if (itemList.tryLoadFromPlanner()) {
             itemList.forceRefresh();
             itemList.search(this.searchBox.getValue());
@@ -204,17 +207,20 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
                     tooltip.add(Component.translatable("recursivecraft.gui.right_click_favorite").withStyle(ChatFormatting.DARK_GRAY));
                 }
 
-                graphics.renderTooltip(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+                List<ClientTooltipComponent> tooltipComponents = tooltip.stream()
+                        .map(c -> ClientTooltipComponent.create(c.getVisualOrderText()))
+                        .toList();
+                graphics.renderTooltip(this.font, tooltipComponents, mouseX, mouseY, DefaultTooltipPositioner.INSTANCE, BACKGROUND_TEXTURE);
             }
         }
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (checkGridClick(mouseX, mouseY, button)) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        if (checkGridClick(event.x(), event.y(), event.button())) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubled);
     }
 
     private boolean checkGridClick(double mouseX, double mouseY, int button) {
@@ -227,12 +233,12 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
             if (mouseX >= x && mouseX < (x + 16) && mouseY >= y && mouseY < (y + 16)) {
                 CraftableTarget clickedTarget = pageItems.get(i);
 
-                if (button == 1) { // 右键收藏
+                if (button == 1) {
                     ClientFavorites.toggleFavorite(clickedTarget.item());
                     return true;
                 }
 
-                if (button == 0) { // 左键选择
+                if (button == 0) {
                     this.selectedTarget = clickedTarget;
                     return true;
                 }

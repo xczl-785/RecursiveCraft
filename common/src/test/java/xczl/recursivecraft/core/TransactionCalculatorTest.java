@@ -1,10 +1,13 @@
 package xczl.recursivecraft.core;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.EndTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -17,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xczl.recursivecraft.data.CraftingTransaction;
 import xczl.recursivecraft.runtime.material.ItemStackComponentSupport;
+import xczl.recursivecraft.runtime.material.RecipeHelper;
+import xczl.recursivecraft.runtime.match.ItemStackHolder;
 import xczl.recursivecraft.testsupport.MinecraftTestBootstrap;
 
 import java.lang.reflect.Constructor;
@@ -165,7 +170,7 @@ class TransactionCalculatorTest {
         ItemStack ingredientLog = stackWithDefaultDamageTag(Items.OAK_LOG);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.OAK_PLANKS, 4,
-                Ingredient.of(ingredientLog),
+                ingredientOf(ingredientLog),
                 "test:planks_from_log_with_default_damage"
         );
         Inventory inv = mockInventory(plainLog);
@@ -330,7 +335,7 @@ class TransactionCalculatorTest {
         TransactionCalculator calculator = new TransactionCalculator(inv);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
-                Ingredient.of(unsupportedStick),
+                ingredientOf(unsupportedStick),
                 "test:torch_from_unsupported_stick"
         );
 
@@ -389,7 +394,7 @@ class TransactionCalculatorTest {
         ItemStack damagedPickaxeRequirement = stackWithDamageValue(Items.DIAMOND_PICKAXE, 5);
         RecipeHolder<CraftingRecipe> recipe = mockRecipe(
                 Items.TORCH, 1,
-                Ingredient.of(damagedPickaxeRequirement),
+                ingredientOf(damagedPickaxeRequirement),
                 "test:torch_from_damaged_pickaxe"
         );
         Inventory inv = mockInventory(undamagedPickaxe);
@@ -437,9 +442,11 @@ class TransactionCalculatorTest {
             ingredients.add(ingredient);
         }
 
-        when(recipe.getIngredients()).thenReturn(ingredients);
-        when(recipe.getResultItem(any())).thenReturn(new ItemStack(resultItem, resultCount));
-        return new RecipeHolder<>(recipeId(id), recipe);
+        net.minecraft.world.item.crafting.PlacementInfo placementInfo = mock(net.minecraft.world.item.crafting.PlacementInfo.class);
+        when(placementInfo.ingredients()).thenReturn(ingredients);
+        when(recipe.placementInfo()).thenReturn(placementInfo);
+        when(recipe.assemble(any(), any())).thenReturn(new ItemStack(resultItem, resultCount));
+        return new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, recipeId(id)), recipe);
     }
 
     private static void setPlanningResult(Map<Item, RecipeHolder<CraftingRecipe>> pathMemo,
@@ -465,11 +472,22 @@ class TransactionCalculatorTest {
         return tag;
     }
 
-    private static ResourceLocation recipeId(String id) {
+    private static Identifier recipeId(String id) {
         String[] parts = id.split(":", 2);
         if (parts.length != 2) {
             throw new IllegalArgumentException("Recipe id must be namespace:path, got " + id);
         }
-        return ResourceLocation.fromNamespaceAndPath(parts[0], parts[1]);
+        return Identifier.fromNamespaceAndPath(parts[0], parts[1]);
+    }
+
+    private static Ingredient ingredientOf(ItemStack... options) {
+        Ingredient ingredient = mock(Ingredient.class);
+        ItemStack[] copies = new ItemStack[options.length];
+        for (int i = 0; i < options.length; i++) {
+            copies[i] = options[i].copy();
+        }
+        when(ingredient.items()).thenAnswer(inv -> java.util.stream.Stream.of(copies).map(stack -> (Holder) new ItemStackHolder(stack)));
+        when(ingredient.isEmpty()).thenReturn(options.length == 0);
+        return ingredient;
     }
 }

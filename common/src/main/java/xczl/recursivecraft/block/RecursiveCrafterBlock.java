@@ -29,7 +29,7 @@ public class RecursiveCrafterBlock extends Block {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (!level.isClientSide) {
+        if (!level.isClientSide()) {
             MenuProvider menuProvider = state.getMenuProvider(level, pos);
             if (menuProvider != null) {
                 MenuRegistry.openExtendedMenu((ServerPlayer) player, menuProvider, (FriendlyByteBuf buf) -> {
