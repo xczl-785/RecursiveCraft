@@ -3,6 +3,7 @@ package xczl.recursivecraft.registry;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import xczl.recursivecraft.RecursiveCraft;
@@ -13,15 +14,22 @@ public class ModItems {
 
     // 引用 ModBlocks.RECURSIVE_CRAFTER_BLOCK
     public static final RegistrySupplier<Item> RECURSIVE_CRAFTER_ITEM = ITEMS.register("recursive_crafter",
-            () -> new BlockItem(ModBlocks.RECURSIVE_CRAFTER_BLOCK.get(), new Item.Properties())
+            () -> new BlockItem(ModBlocks.RECURSIVE_CRAFTER_BLOCK.get(),
+                    new Item.Properties().setId(itemKey("recursive_crafter")))
     );
 
     // [新增] 手持递归合成器
     public static final RegistrySupplier<Item> HANDHELD_CRAFTER_ITEM = ITEMS.register("handheld_crafter",
-            () -> new HandheldCrafterItem(new Item.Properties().stacksTo(1))
+            () -> new HandheldCrafterItem(new Item.Properties()
+                    .stacksTo(1)
+                    .setId(itemKey("handheld_crafter")))
     );
 
     public static void register() {
         ITEMS.register();
+    }
+
+    private static ResourceKey<Item> itemKey(String name) {
+        return ResourceKey.create(Registries.ITEM, RecursiveCraft.id(name));
     }
 }
