@@ -117,7 +117,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
         } catch (NumberFormatException e) {
             amount = 1;
         }
-        PacketHandler.CHANNEL.sendToServer(new C2SExecuteCraftPacket(
+        PacketHandler.sendToServer(new C2SExecuteCraftPacket(
                 this.selectedTarget.item(),
                 amount,
                 this.selectedTarget.forcedRecipeId(),

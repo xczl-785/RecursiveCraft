@@ -92,7 +92,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                     .filter(stack -> !stack.isEmpty())
                     .findFirst()
                     .orElse(output);
-            PacketHandler.CHANNEL.sendToServer(
+            PacketHandler.sendToServer(
                     RecursiveCraftTransferPackets.createRecursivePacket(recipeHolder, displayedInputs, displayedOutput, maxTransfer)
             );
             return null;

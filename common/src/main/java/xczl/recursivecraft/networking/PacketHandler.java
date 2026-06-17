@@ -1,22 +1,32 @@
 package xczl.recursivecraft.networking;
 
-import dev.architectury.networking.NetworkChannel;
+import dev.architectury.networking.NetworkManager;
+import io.netty.buffer.Unpooled;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import xczl.recursivecraft.RecursiveCraft;
 
 public class PacketHandler {
-    // 创建通道
-    public static final NetworkChannel CHANNEL = NetworkChannel.create(RecursiveCraft.id("main"));
+    private static final ResourceLocation EXECUTE_CRAFT_PACKET_ID = RecursiveCraft.id("execute_craft");
 
     public static void register() {
-        // 注册数据包
-        // 参数顺序：类, 编码方法, 解码方法, 处理方法
-        CHANNEL.register(
-                C2SExecuteCraftPacket.class,
-                C2SExecuteCraftPacket::encode,
-                C2SExecuteCraftPacket::decode,
-                C2SExecuteCraftPacket::handle
-        );
+        NetworkManager.registerReceiver(NetworkManager.c2s(), EXECUTE_CRAFT_PACKET_ID, (buf, context) ->
+                C2SExecuteCraftPacket.handle(C2SExecuteCraftPacket.decode(buf), () -> context));
 
         RecursiveCraft.LOGGER.info("RecursiveCraft: Networking registered.");
+    }
+
+    @Environment(EnvType.CLIENT)
+    public static void sendToServer(C2SExecuteCraftPacket packet) {
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
+            throw new IllegalStateException("Unable to send packet to the server while not in game!");
+        }
+        var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), connection.registryAccess());
+        packet.encode(buf);
+        NetworkManager.sendToServer(EXECUTE_CRAFT_PACKET_ID, buf);
     }
 }
