@@ -7,6 +7,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -207,7 +208,7 @@ public class RecursiveCrafterScreen extends AbstractContainerScreen<RecursiveCra
                 List<ClientTooltipComponent> tooltipComponents = tooltip.stream()
                         .map(c -> ClientTooltipComponent.create(c.getVisualOrderText()))
                         .toList();
-                graphics.renderTooltip(this.font, tooltipComponents, mouseX, mouseY, null, BACKGROUND_TEXTURE);
+                graphics.renderTooltip(this.font, tooltipComponents, mouseX, mouseY, DefaultTooltipPositioner.INSTANCE, null);
             }
         }
     }

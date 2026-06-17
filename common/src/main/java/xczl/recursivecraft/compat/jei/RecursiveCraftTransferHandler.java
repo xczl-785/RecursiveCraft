@@ -13,6 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -342,7 +343,7 @@ public class RecursiveCraftTransferHandler<C extends AbstractContainerMenu> impl
                 List<ClientTooltipComponent> tooltipComponents = List.of(
                         ClientTooltipComponent.create(message.getVisualOrderText())
                 );
-                graphics.renderTooltip(Minecraft.getInstance().font, tooltipComponents, mouseX, mouseY, null, net.minecraft.resources.ResourceLocation.parse("minecraft:tooltip/background"));
+                graphics.renderTooltip(Minecraft.getInstance().font, tooltipComponents, mouseX, mouseY, DefaultTooltipPositioner.INSTANCE, null);
             }
         }
     }
